@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SwitchBot センサーダッシュボード</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>SwitchBot センサーダッシュボード</h1>
+      <div class="subtitle">device_status_logs — 温度・湿度・CO2 モニタリング</div>
+    </div>
+    <div class="header-right">
+      <div class="live-badge"><span class="live-dot"></span>LIVE</div>
+      <span id="countdown">読み込み中...</span>
+      <span id="last-updated">—</span>
+    </div>
+  </header>
+  <main>
+    <div id="loading"><div class="spinner"></div>データを取得中...</div>
+    <div id="error-msg"></div>
+    <div id="dashboard"></div>
+  </main>
+  <script src="/js/app.js"></script>
+</body>
+</html>

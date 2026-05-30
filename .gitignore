@@ -1,0 +1,18 @@
+# 環境変数（認証情報を含むため必ずignore）
+.env
+
+# Node.js
+node_modules/
+
+# ログ
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# エディタ
+.idea/
+.vscode/
+*.swp
