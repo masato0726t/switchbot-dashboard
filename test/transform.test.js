@@ -37,11 +37,14 @@ test('CO2 がある行だけ co2 フィールドを持つ', () => {
   assert.equal(out[0].data[0].co2, 718);
 });
 
-test('内部用の _ts はレスポンスに含めない', () => {
+test('内部用の _ts は数値 ts として公開し、time も持つ', () => {
   const logs = [log(1, '2026-05-31T10:00:00Z', { temperature: 24, humidity: 55 })];
   const out = buildSensorData(DEVICES, logs);
-  assert.ok(!('_ts' in out[0].data[0]));
-  assert.ok('time' in out[0].data[0]);
+  const point = out[0].data[0];
+  assert.ok(!('_ts' in point));                              // 内部名は漏らさない
+  assert.equal(typeof point.ts, 'number');                  // エポックミリ秒を公開
+  assert.equal(point.ts, Date.parse('2026-05-31T10:00:00Z'));
+  assert.ok('time' in point);                               // 表示用文字列も持つ
 });
 
 test('欠損値は null になる', () => {
