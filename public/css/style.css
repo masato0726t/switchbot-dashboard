@@ -31,12 +31,6 @@ header .subtitle { font-size: 0.78rem; color: #94a3b8; margin-top: 2px; }
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.4; transform: scale(0.8); }
 }
-#countdown {
-  font-size: 0.75rem; color: #64748b;
-  background: #0f172a; border: 1px solid #334155;
-  padding: 3px 10px; border-radius: 9999px;
-  min-width: 110px; text-align: center;
-}
 #last-updated { font-size: 0.72rem; color: #475569; }
 
 main { padding: 24px; max-width: 1400px; margin: 0 auto; }

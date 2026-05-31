@@ -255,7 +255,6 @@ async function fetchAndUpdate() {
 }
 
 let remaining = REFRESH_SEC;
-const countdownEl = document.getElementById('countdown');
 
 function rangeDef() {
   return RANGES.find(r => r.key === currentRange);
@@ -281,13 +280,6 @@ function reload() {
   remaining = REFRESH_SEC;
   updateNavState();
   fetchAndUpdate();
-  syncCountdown();
-}
-
-function syncCountdown() {
-  countdownEl.textContent = isLive()
-    ? `次の更新まで ${remaining}秒`
-    : '履歴表示中（自動更新停止）';
 }
 
 function renderRangeBar() {
@@ -352,7 +344,6 @@ function updateNavState() {
 setInterval(() => {
   if (!isLive()) return;                         // 履歴表示中は自動更新しない
   remaining--;
-  syncCountdown();
   if (remaining <= 0) {
     remaining = REFRESH_SEC;
     fetchAndUpdate();
@@ -363,4 +354,3 @@ renderRangeBar();
 renderNavBar();
 updateNavState();
 fetchAndUpdate();
-syncCountdown();
