@@ -96,6 +96,10 @@ npm start
 **800 点**（`lib/transform.js` の `MAX_POINTS`）を超えると LTTB で間引かれ、その場合
 `downsampled: true` が付きます。
 
+`total` は `range`/`offset` に依存しない**全期間の総件数（DB 行数）**です。
+UI の「データ件数（表示 / 全）」カードでは、メインに `data` の配列長（間引き後の**表示中の点数**）、
+その下に `total`（**全データ件数**）を併記します。
+
 レスポンス例:
 ```json
 [
@@ -103,6 +107,7 @@ npm start
     "device_id": 1,
     "name": "リビング",
     "type": "WoIOSensor",
+    "total": 52431,
     "downsampled": false,
     "data": [
       { "time": "2026/5/31 19:00:00", "temperature": 24.9, "humidity": 55, "co2": 718 }

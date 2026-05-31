@@ -101,7 +101,7 @@ function flashCard(el) {
 }
 
 function initDevice(device) {
-  const { device_id, name, type, data, downsampled } = device;
+  const { device_id, name, type, data, downsampled, total } = device;
   const labels = data.map(d => d.time);
   const temps  = data.map(d => d.temperature);
   const humids = data.map(d => d.humidity);
@@ -132,7 +132,7 @@ function initDevice(device) {
       ${lastTemp != null ? `<div class="stat-card" id="stat-card-temp-${device_id}"><div class="stat-label">現在の温度</div><div class="stat-value temp-color" id="stat-temp-${device_id}">${lastTemp}<span class="stat-unit">°C</span></div></div>` : ''}
       ${lastHumi != null ? `<div class="stat-card" id="stat-card-humi-${device_id}"><div class="stat-label">現在の湿度</div><div class="stat-value humi-color" id="stat-humi-${device_id}">${lastHumi}<span class="stat-unit">%</span></div></div>` : ''}
       ${lastCO2  != null ? `<div class="stat-card" id="stat-card-co2-${device_id}"><div class="stat-label">現在のCO2</div><div class="stat-value co2-color" id="stat-co2-${device_id}">${lastCO2}<span class="stat-unit">ppm</span></div></div>` : ''}
-      <div class="stat-card" id="stat-card-count-${device_id}"><div class="stat-label">データ件数</div><div class="stat-value" style="color:#e2e8f0;font-size:1.4rem" id="stat-count-${device_id}">${data.length}<span class="stat-unit">件</span></div></div>
+      <div class="stat-card" id="stat-card-count-${device_id}"><div class="stat-label">データ件数（表示 / 全）</div><div class="stat-value" style="color:#e2e8f0;font-size:1.4rem" id="stat-count-${device_id}">${data.length}<span class="stat-unit">件</span></div><div class="stat-sub">全 <span class="stat-sub-num" id="stat-total-${device_id}">${total}</span> 件</div></div>
     </div>
     <div class="charts-grid" style="grid-template-columns: repeat(auto-fit, minmax(400px, 1fr))">
       ${lastTemp != null ? `<div class="chart-card"><div class="chart-title">温度 (°C)</div><div class="chart-wrap"><canvas id="${tid}"></canvas></div></div>` : ''}
@@ -148,11 +148,11 @@ function initDevice(device) {
   if (lastHumi != null) charts.humi = buildChart(hid, labels, humids, '湿度 (%)',   PALETTE.humidity);
   if (hasCO2)           charts.co2  = buildChart(cid, labels, co2s,   'CO2 (ppm)', PALETTE.co2);
 
-  registry.set(device_id, { charts, dataLen: data.length });
+  registry.set(device_id, { charts, dataLen: data.length, total });
 }
 
 function updateDevice(device) {
-  const { device_id, data } = device;
+  const { device_id, data, total } = device;
   const rec = registry.get(device_id);
   const isNew = data.length > rec.dataLen;
 
@@ -186,14 +186,20 @@ function updateDevice(device) {
   if (lastHumi != null) setStatValue(`stat-humi-${device_id}`, `stat-card-humi-${device_id}`, lastHumi, '%');
   if (lastCO2  != null) setStatValue(`stat-co2-${device_id}`,  `stat-card-co2-${device_id}`,  lastCO2,  'ppm');
 
+  // 表示中の件数（間引き後の点数）
   const countEl = document.getElementById(`stat-count-${device_id}`);
-  if (countEl) {
-    if (isNew && document.getElementById(`stat-card-count-${device_id}`))
-      flashCard(document.getElementById(`stat-card-count-${device_id}`));
-    countEl.innerHTML = `${data.length}<span class="stat-unit">件</span>`;
+  if (countEl) countEl.innerHTML = `${data.length}<span class="stat-unit">件</span>`;
+
+  // 全データ件数（全期間）。増えたら件数カードをフラッシュする
+  const totalEl = document.getElementById(`stat-total-${device_id}`);
+  if (totalEl && total != null) {
+    const card = document.getElementById(`stat-card-count-${device_id}`);
+    if (total > rec.total && card) flashCard(card);
+    totalEl.textContent = total;
   }
 
   rec.dataLen = data.length;
+  rec.total = total;
 }
 
 function clearDashboard() {

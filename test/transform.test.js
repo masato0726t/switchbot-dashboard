@@ -58,7 +58,7 @@ test('未知の device_id のログは無視する', () => {
 test('点数が maxPoints 以下なら downsampled=false で全件返す', () => {
   const logs = Array.from({ length: 10 }, (_, i) =>
     log(1, new Date(Date.UTC(2026, 4, 31, 10, i)).toISOString(), { temperature: 20 + i, humidity: 50 }));
-  const out = buildSensorData(DEVICES, logs, 800);
+  const out = buildSensorData(DEVICES, logs, {}, 800);
   assert.equal(out[0].downsampled, false);
   assert.equal(out[0].data.length, 10);
 });
@@ -67,9 +67,25 @@ test('点数が maxPoints を超えると downsampled=true で間引かれる', 
   const n = 2000;
   const logs = Array.from({ length: n }, (_, i) =>
     log(1, new Date(Date.UTC(2026, 4, 31, 0, 0, i)).toISOString(), { temperature: 20 + (i % 5), humidity: 50 }));
-  const out = buildSensorData(DEVICES, logs, 800);
+  const out = buildSensorData(DEVICES, logs, {}, 800);
   assert.equal(out[0].downsampled, true);
   assert.equal(out[0].data.length, 800);
+});
+
+test('total は totals で渡した全期間の総件数を使う', () => {
+  const logs = [
+    log(1, '2026-05-31T10:00:00Z', { temperature: 24.9, humidity: 55 }),
+    log(1, '2026-05-31T10:05:00Z', { temperature: 25.1, humidity: 54 }),
+  ];
+  const out = buildSensorData(DEVICES, logs, { 1: 12345 });
+  assert.equal(out[0].total, 12345);   // 表示範囲の点数(2)ではなく総件数を表示
+  assert.equal(out[0].data.length, 2);
+});
+
+test('totals 未指定なら total は表示範囲の点数で代替する', () => {
+  const logs = [log(1, '2026-05-31T10:00:00Z', { temperature: 24, humidity: 55 })];
+  const out = buildSensorData(DEVICES, logs);
+  assert.equal(out[0].total, 1);
 });
 
 test('MAX_POINTS がエクスポートされている', () => {
