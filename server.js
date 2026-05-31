@@ -3,7 +3,7 @@ const express = require('express');
 const mysql = require('mysql2/promise');
 const path = require('path');
 
-const { rangeClause } = require('./lib/ranges');
+const { windowClause } = require('./lib/ranges');
 const { buildSensorData } = require('./lib/transform');
 
 const app = express();
@@ -28,6 +28,8 @@ app.get('/api/sensor-data', async (req, res) => {
       `SELECT id, device_name, device_type FROM devices WHERE is_virtual_infrared = 0 ORDER BY id`
     );
 
+    const { clause, params } = windowClause(req.query.range, req.query.offset);
+
     const [logs] = await conn.query(
       `SELECT
         l.device_id,
@@ -36,8 +38,9 @@ app.get('/api/sensor-data', async (req, res) => {
        FROM device_status_logs l
        WHERE JSON_LENGTH(l.status_data) > 0
          AND JSON_EXTRACT(l.status_data, '$.temperature') IS NOT NULL
-         ${rangeClause(req.query.range)}
-       ORDER BY l.device_id, l.recorded_at ASC`
+         ${clause}
+       ORDER BY l.device_id, l.recorded_at ASC`,
+      params
     );
 
     res.json(buildSensorData(devices, logs));

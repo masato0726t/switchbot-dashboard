@@ -55,6 +55,27 @@ main { padding: 24px; max-width: 1400px; margin: 0 auto; }
 .range-btn.active {
   background: #0ea5e9; border-color: #0ea5e9; color: #0f172a;
 }
+.nav-bar {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 24px;
+}
+.nav-btn {
+  background: #1e293b; border: 1px solid #334155;
+  color: #cbd5e1; font-size: 0.8rem; font-weight: 600;
+  padding: 7px 14px; border-radius: 8px; cursor: pointer;
+  transition: all 0.2s;
+}
+.nav-btn:hover:not(:disabled) { border-color: #0ea5e9; color: #f1f5f9; }
+.nav-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.nav-latest { margin-left: auto; }
+.nav-label {
+  font-size: 0.85rem; font-weight: 600; color: #94a3b8;
+  min-width: 140px; text-align: center;
+  padding: 6px 12px; border-radius: 8px;
+  background: #0f172a; border: 1px solid #334155;
+}
+.nav-label.historical { color: #fbbf24; border-color: #854d0e; background: #422006; }
+
 .empty-msg {
   display: flex; align-items: center; justify-content: center;
   height: 200px; color: #64748b; font-size: 0.95rem;

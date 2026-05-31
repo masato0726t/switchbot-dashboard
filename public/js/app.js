@@ -6,20 +6,23 @@ const PALETTE = {
   co2:         { line: '#a78bfa', fill: 'rgba(167,139,250,0.12)' },
 };
 
-// 表示範囲の選択肢（key はサーバー側 RANGE_INTERVALS と対応）
+// 表示範囲の選択肢（key・count・unit はサーバー側 RANGE_SPECS と対応）。
+// count/unitJa はページング時の窓ラベル生成に使う。nav:false は遡れない（全期間）。
 const RANGES = [
-  { key: '1h',  label: '1時間' },
-  { key: '6h',  label: '6時間' },
-  { key: '12h', label: '12時間' },
-  { key: '24h', label: '24時間' },
-  { key: '1w',  label: '1週間' },
-  { key: '1mo', label: '1ヶ月' },
-  { key: '1y',  label: '1年' },
-  { key: '3y',  label: '3年' },
-  { key: 'all', label: '全部' },
+  { key: '1h',  label: '1時間',  count: 1,  unitJa: '時間', nav: true },
+  { key: '6h',  label: '6時間',  count: 6,  unitJa: '時間', nav: true },
+  { key: '12h', label: '12時間', count: 12, unitJa: '時間', nav: true },
+  { key: '24h', label: '24時間', count: 24, unitJa: '時間', nav: true },
+  { key: '1w',  label: '1週間',  count: 7,  unitJa: '日',   nav: true },
+  { key: '1mo', label: '1ヶ月',  count: 1,  unitJa: 'ヶ月', nav: true },
+  { key: '1y',  label: '1年',    count: 1,  unitJa: '年',   nav: true },
+  { key: '3y',  label: '3年',    count: 3,  unitJa: '年',   nav: true },
+  { key: 'all', label: '全部',   count: 0,  unitJa: '',     nav: false },
 ];
 
 let currentRange = '24h';
+// 何区間ぶん過去を見ているか。0 = 最新（ライブ）、1 以上 = 過去ページ。
+let currentOffset = 0;
 
 // device_id -> { charts: {temp, humi, co2}, dataLen }
 const registry = new Map();
@@ -203,7 +206,9 @@ function clearDashboard() {
 
 async function fetchAndUpdate() {
   try {
-    const res = await fetch(`/api/sensor-data?range=${encodeURIComponent(currentRange)}`);
+    const res = await fetch(
+      `/api/sensor-data?range=${encodeURIComponent(currentRange)}&offset=${currentOffset}`
+    );
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const devices = await res.json();
 
@@ -246,6 +251,39 @@ async function fetchAndUpdate() {
 let remaining = REFRESH_SEC;
 const countdownEl = document.getElementById('countdown');
 
+function rangeDef() {
+  return RANGES.find(r => r.key === currentRange);
+}
+
+function isLive() {
+  return currentOffset === 0;
+}
+
+// 現在見ている窓の人間向けラベル。offset=0 は「最新」、それ以外は「a〜b単位前」。
+function windowLabel() {
+  const r = rangeDef();
+  if (isLive()) return `最新の${r.label}`;
+  const near = r.count * currentOffset;
+  const far  = r.count * (currentOffset + 1);
+  return `${near}〜${far}${r.unitJa}前`;
+}
+
+// 範囲・オフセットを変えたあとの再読み込み（チャートを作り直す）
+function reload() {
+  clearDashboard();
+  document.getElementById('loading').style.display = 'flex';
+  remaining = REFRESH_SEC;
+  updateNavState();
+  fetchAndUpdate();
+  syncCountdown();
+}
+
+function syncCountdown() {
+  countdownEl.textContent = isLive()
+    ? `次の更新まで ${remaining}秒`
+    : '履歴表示中（自動更新停止）';
+}
+
 function renderRangeBar() {
   const bar = document.getElementById('range-bar');
   for (const { key, label } of RANGES) {
@@ -256,20 +294,59 @@ function renderRangeBar() {
     btn.addEventListener('click', () => {
       if (key === currentRange) return;
       currentRange = key;
+      currentOffset = 0;                 // 範囲を変えたら最新に戻す
       for (const b of bar.children) b.classList.toggle('active', b.dataset.range === key);
-      clearDashboard();
-      document.getElementById('loading').style.display = 'flex';
-      remaining = REFRESH_SEC;
-      countdownEl.textContent = `次の更新まで ${REFRESH_SEC}秒`;
-      fetchAndUpdate();
+      reload();
     });
     bar.appendChild(btn);
   }
 }
 
+function renderNavBar() {
+  const bar = document.getElementById('nav-bar');
+  bar.innerHTML = `
+    <button id="nav-prev" class="nav-btn" title="ひとつ過去の期間へ">← 過去へ</button>
+    <span id="nav-label" class="nav-label">最新</span>
+    <button id="nav-next" class="nav-btn" title="ひとつ新しい期間へ">新しい方へ →</button>
+    <button id="nav-latest" class="nav-btn nav-latest" title="最新の期間に戻る">最新へ ⏭</button>
+  `;
+  bar.querySelector('#nav-prev').addEventListener('click', () => {
+    if (!rangeDef().nav) return;
+    currentOffset += 1;
+    reload();
+  });
+  bar.querySelector('#nav-next').addEventListener('click', () => {
+    if (currentOffset === 0) return;
+    currentOffset -= 1;
+    reload();
+  });
+  bar.querySelector('#nav-latest').addEventListener('click', () => {
+    if (currentOffset === 0) return;
+    currentOffset = 0;
+    reload();
+  });
+}
+
+// 現在のモードに合わせてナビボタンの活性状態とラベルを更新
+function updateNavState() {
+  const navOk = rangeDef().nav;
+  const prev = document.getElementById('nav-prev');
+  const next = document.getElementById('nav-next');
+  const latest = document.getElementById('nav-latest');
+  const label = document.getElementById('nav-label');
+  if (!prev) return;
+
+  prev.disabled = !navOk;                       // 全期間表示中は遡れない
+  next.disabled = currentOffset === 0;          // 最新では「新しい方へ」不可
+  latest.disabled = currentOffset === 0;        // 最新では「最新へ」不要
+  label.textContent = navOk ? windowLabel() : '全期間';
+  label.classList.toggle('historical', !isLive());
+}
+
 setInterval(() => {
+  if (!isLive()) return;                         // 履歴表示中は自動更新しない
   remaining--;
-  countdownEl.textContent = `次の更新まで ${remaining}秒`;
+  syncCountdown();
   if (remaining <= 0) {
     remaining = REFRESH_SEC;
     fetchAndUpdate();
@@ -277,5 +354,7 @@ setInterval(() => {
 }, 1000);
 
 renderRangeBar();
+renderNavBar();
+updateNavState();
 fetchAndUpdate();
-countdownEl.textContent = `次の更新まで ${REFRESH_SEC}秒`;
+syncCountdown();
