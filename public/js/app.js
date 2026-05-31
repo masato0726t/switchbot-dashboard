@@ -6,6 +6,21 @@ const PALETTE = {
   co2:         { line: '#a78bfa', fill: 'rgba(167,139,250,0.12)' },
 };
 
+// 表示範囲の選択肢（key はサーバー側 RANGE_INTERVALS と対応）
+const RANGES = [
+  { key: '1h',  label: '1時間' },
+  { key: '6h',  label: '6時間' },
+  { key: '12h', label: '12時間' },
+  { key: '24h', label: '24時間' },
+  { key: '1w',  label: '1週間' },
+  { key: '1mo', label: '1ヶ月' },
+  { key: '1y',  label: '1年' },
+  { key: '3y',  label: '3年' },
+  { key: 'all', label: '全部' },
+];
+
+let currentRange = '24h';
+
 // device_id -> { charts: {temp, humi, co2}, dataLen }
 const registry = new Map();
 
@@ -83,7 +98,7 @@ function flashCard(el) {
 }
 
 function initDevice(device) {
-  const { device_id, name, type, data } = device;
+  const { device_id, name, type, data, downsampled } = device;
   const labels = data.map(d => d.time);
   const temps  = data.map(d => d.temperature);
   const humids = data.map(d => d.humidity);
@@ -107,7 +122,7 @@ function initDevice(device) {
       <div class="device-icon">${deviceIcon(type)}</div>
       <div>
         <div class="device-name">${name}</div>
-        <div class="device-type">device_id: ${device_id} &nbsp;|&nbsp; ${type || 'N/A'}</div>
+        <div class="device-type">device_id: ${device_id} &nbsp;|&nbsp; ${type || 'N/A'}${downsampled ? ' &nbsp;|&nbsp; <span class="downsample-tag">間引き表示</span>' : ''}</div>
       </div>
     </div>
     <div class="stats-row" id="stats-row-${device_id}">
@@ -178,9 +193,17 @@ function updateDevice(device) {
   rec.dataLen = data.length;
 }
 
+function clearDashboard() {
+  for (const rec of registry.values()) {
+    for (const chart of Object.values(rec.charts)) chart.destroy();
+  }
+  registry.clear();
+  document.getElementById('dashboard').innerHTML = '';
+}
+
 async function fetchAndUpdate() {
   try {
-    const res = await fetch('/api/sensor-data');
+    const res = await fetch(`/api/sensor-data?range=${encodeURIComponent(currentRange)}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const devices = await res.json();
 
@@ -189,12 +212,29 @@ async function fetchAndUpdate() {
     document.getElementById('last-updated').textContent =
       `更新: ${new Date().toLocaleTimeString('ja-JP')}`;
 
+    const seen = new Set();
     for (const device of devices) {
+      seen.add(device.device_id);
       if (registry.has(device.device_id)) {
         updateDevice(device);
       } else {
         initDevice(device);
       }
+    }
+
+    // この範囲ではデータが無くなったデバイスのセクションを除去
+    for (const id of [...registry.keys()]) {
+      if (!seen.has(id)) {
+        const rec = registry.get(id);
+        for (const chart of Object.values(rec.charts)) chart.destroy();
+        registry.delete(id);
+        document.getElementById(`device-section-${id}`)?.remove();
+      }
+    }
+
+    if (devices.length === 0) {
+      document.getElementById('dashboard').innerHTML =
+        '<div class="empty-msg">この期間のデータはありません</div>';
     }
   } catch (err) {
     const el = document.getElementById('error-msg');
@@ -206,6 +246,27 @@ async function fetchAndUpdate() {
 let remaining = REFRESH_SEC;
 const countdownEl = document.getElementById('countdown');
 
+function renderRangeBar() {
+  const bar = document.getElementById('range-bar');
+  for (const { key, label } of RANGES) {
+    const btn = document.createElement('button');
+    btn.className = 'range-btn' + (key === currentRange ? ' active' : '');
+    btn.textContent = label;
+    btn.dataset.range = key;
+    btn.addEventListener('click', () => {
+      if (key === currentRange) return;
+      currentRange = key;
+      for (const b of bar.children) b.classList.toggle('active', b.dataset.range === key);
+      clearDashboard();
+      document.getElementById('loading').style.display = 'flex';
+      remaining = REFRESH_SEC;
+      countdownEl.textContent = `次の更新まで ${REFRESH_SEC}秒`;
+      fetchAndUpdate();
+    });
+    bar.appendChild(btn);
+  }
+}
+
 setInterval(() => {
   remaining--;
   countdownEl.textContent = `次の更新まで ${remaining}秒`;
@@ -215,5 +276,6 @@ setInterval(() => {
   }
 }, 1000);
 
+renderRangeBar();
 fetchAndUpdate();
 countdownEl.textContent = `次の更新まで ${REFRESH_SEC}秒`;

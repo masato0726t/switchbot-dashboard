@@ -3,6 +3,9 @@ const express = require('express');
 const mysql = require('mysql2/promise');
 const path = require('path');
 
+const { rangeClause } = require('./lib/ranges');
+const { buildSensorData } = require('./lib/transform');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -33,32 +36,11 @@ app.get('/api/sensor-data', async (req, res) => {
        FROM device_status_logs l
        WHERE JSON_LENGTH(l.status_data) > 0
          AND JSON_EXTRACT(l.status_data, '$.temperature') IS NOT NULL
+         ${rangeClause(req.query.range)}
        ORDER BY l.device_id, l.recorded_at ASC`
     );
 
-    const deviceMap = {};
-    for (const d of devices) {
-      deviceMap[d.id] = { name: d.device_name, type: d.device_type, data: [] };
-    }
-
-    for (const log of logs) {
-      const dev = deviceMap[log.device_id];
-      if (!dev) continue;
-      const s = log.status_data;
-      const entry = {
-        time: new Date(log.recorded_at).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }),
-        temperature: s.temperature ?? null,
-        humidity:    s.humidity    ?? null,
-      };
-      if (s.CO2 !== undefined) entry.co2 = s.CO2;
-      dev.data.push(entry);
-    }
-
-    const result = Object.entries(deviceMap)
-      .filter(([, v]) => v.data.length > 0)
-      .map(([id, v]) => ({ device_id: Number(id), ...v }));
-
-    res.json(result);
+    res.json(buildSensorData(devices, logs));
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
