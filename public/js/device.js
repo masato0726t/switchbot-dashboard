@@ -22,6 +22,7 @@ export function initDevice(device, range) {
   const lastTemp = latest(data, 'temperature');
   const lastHumi = latest(data, 'humidity');
   const lastCO2  = hasCO2 ? latest(data, 'co2') : null;
+  const lastBattery = latest(data, 'battery');
 
   const tid = `chart-temp-${device_id}`;
   const hid = `chart-humi-${device_id}`;
@@ -35,7 +36,7 @@ export function initDevice(device, range) {
     <div class="device-header">
       <div class="device-icon">${deviceIcon(type)}</div>
       <div>
-        <div class="device-name">${name}</div>
+        <div class="device-name">${name}${lastBattery != null ? ` <span class="battery-tag" id="battery-tag-${device_id}">🔋 ${lastBattery}%</span>` : ''}</div>
         <div class="device-type">device_id: ${device_id} &nbsp;|&nbsp; ${type || 'N/A'}${downsampled ? ' &nbsp;|&nbsp; <span class="downsample-tag">間引き表示</span>' : ''}</div>
       </div>
     </div>
@@ -89,6 +90,10 @@ export function updateDevice(device, range) {
       if (isNew && card) flashCard(card);
     }
   }
+
+  const lastBattery = latest(data, 'battery');
+  const batteryEl = document.getElementById(`battery-tag-${device_id}`);
+  if (batteryEl && lastBattery != null) batteryEl.textContent = `🔋 ${lastBattery}%`;
 
   if (lastTemp != null) setStatValue(`stat-temp-${device_id}`, `stat-card-temp-${device_id}`, lastTemp, '°C');
   if (lastHumi != null) setStatValue(`stat-humi-${device_id}`, `stat-card-humi-${device_id}`, lastHumi, '%');
