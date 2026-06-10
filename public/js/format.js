@@ -33,14 +33,16 @@ export function formatTimeLabel(ts, range) {
 
 // API の data 配列を、チャート描画に必要な系列へ一括変換する。
 // labels は短縮ラベル、times はツールチップ用のフル日時。
+// 温度・湿度が両方 0 のレコードはセンサー異常値とみなしグラフから除外する。
 export function extractSeries(data, range) {
-  const hasCO2 = data.some(d => d.co2 != null);
+  const rows = data.filter(d => !(d.temperature === 0 && d.humidity === 0));
+  const hasCO2 = rows.some(d => d.co2 != null);
   return {
-    labels: data.map(d => formatTimeLabel(d.ts, range)),
-    times:  data.map(d => d.time),
-    temps:  data.map(d => d.temperature),
-    humids: data.map(d => d.humidity),
-    co2s:   hasCO2 ? data.map(d => d.co2 ?? null) : [],
+    labels: rows.map(d => formatTimeLabel(d.ts, range)),
+    times:  rows.map(d => d.time),
+    temps:  rows.map(d => d.temperature),
+    humids: rows.map(d => d.humidity),
+    co2s:   hasCO2 ? rows.map(d => d.co2 ?? null) : [],
     hasCO2,
   };
 }
