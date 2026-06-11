@@ -18,6 +18,11 @@ const dbConfig = {
   database: process.env.DB_NAME,
 };
 
+// ダッシュボードが扱う有効なセンサー行だけに絞る共通フィルタ。
+// 総件数の集計と表示窓の抽出で必ず同じ条件を使い、件数の整合を保つ。
+const SENSOR_LOG_FILTER = `JSON_LENGTH(l.status_data) > 0
+          AND JSON_EXTRACT(l.status_data, '$.temperature') IS NOT NULL`;
+
 // 全リクエストのアクセスログ。完了時にステータスと所要時間を出力する。
 app.use((req, res, next) => {
   const start = Date.now();
@@ -46,12 +51,10 @@ app.get('/api/sensor-data', async (req, res) => {
     log.debug(`デバイス取得: ${devices.length} 件`);
 
     // 全期間の総件数（表示範囲・offset に依存しない DB 行数）をデバイス別に集計。
-    // window 句のフィルタと条件を揃え、ダッシュボードが扱う有効なセンサー行のみ数える。
     const [totalRows] = await conn.query(
       `SELECT l.device_id, COUNT(*) AS total
          FROM device_status_logs l
-        WHERE JSON_LENGTH(l.status_data) > 0
-          AND JSON_EXTRACT(l.status_data, '$.temperature') IS NOT NULL
+        WHERE ${SENSOR_LOG_FILTER}
         GROUP BY l.device_id`
     );
     const totals = {};
@@ -65,8 +68,7 @@ app.get('/api/sensor-data', async (req, res) => {
         l.status_data,
         l.recorded_at
        FROM device_status_logs l
-       WHERE JSON_LENGTH(l.status_data) > 0
-         AND JSON_EXTRACT(l.status_data, '$.temperature') IS NOT NULL
+       WHERE ${SENSOR_LOG_FILTER}
          ${clause}
        ORDER BY l.device_id, l.recorded_at ASC`,
       params

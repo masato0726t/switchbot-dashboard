@@ -1,6 +1,6 @@
 // デバイス1台ぶんのセクション（統計カード＋グラフ）の生成・更新・破棄。
 
-import { PALETTE } from './config.js';
+import { METRICS } from './config.js';
 import { deviceIcon, latest, extractSeries } from './format.js';
 import { buildChart, updateChart } from './charts.js';
 import { buildShareButtons } from './share.js';
@@ -8,14 +8,12 @@ import { buildShareButtons } from './share.js';
 // device_id -> { charts: {temp, humi, co2}, dataLen, total, last }
 export const registry = new Map();
 
-// SNS 共有用に、表示中データの最新値（時刻・温度・湿度・CO2）をまとめる。
-function latestValues(data, hasCO2) {
-  return {
-    time:        latest(data, 'time'),
-    temperature: latest(data, 'temperature'),
-    humidity:    latest(data, 'humidity'),
-    co2:         hasCO2 ? latest(data, 'co2') : null,
-  };
+// 表示中データの最新値（時刻＋各メトリクス）をまとめる。SNS 共有にも使う。
+// 値が一度も記録されていないメトリクスは null になる。
+function latestValues(data) {
+  const last = { time: latest(data, 'time') };
+  for (const m of METRICS) last[m.field] = latest(data, m.field);
+  return last;
 }
 
 // CSS アニメーションを再生し直すためのリフロー付きフラッシュ。
@@ -28,20 +26,24 @@ function flashCard(el) {
 // 初回表示。セクション DOM を作り、各グラフを生成して registry に登録する。
 export function initDevice(device, range) {
   const { device_id, name, type, data, downsampled, total } = device;
-  const { labels, times, temps, humids, co2s, hasCO2 } = extractSeries(data, range);
+  const { labels, times, series } = extractSeries(data, range);
 
-  const lastTemp = latest(data, 'temperature');
-  const lastHumi = latest(data, 'humidity');
-  const lastCO2  = hasCO2 ? latest(data, 'co2') : null;
+  const last = latestValues(data);
   const lastBattery = latest(data, 'battery');
-
-  const tid = `chart-temp-${device_id}`;
-  const hid = `chart-humi-${device_id}`;
-  const cid = `chart-co2-${device_id}`;
+  // 値を持つメトリクスだけカードとグラフを出す
+  const shown = METRICS.filter(m => last[m.field] != null);
 
   const section = document.createElement('div');
   section.className = 'device-section';
   section.id = `device-section-${device_id}`;
+
+  const statCards = shown.map(m =>
+    `<div class="stat-card" id="stat-card-${m.key}-${device_id}"><div class="stat-label">現在の${m.label}</div><div class="stat-value ${m.colorClass}" id="stat-${m.key}-${device_id}">${last[m.field]}<span class="stat-unit">${m.unit}</span></div></div>`
+  ).join('');
+
+  const chartCards = shown.map(m =>
+    `<div class="chart-card"><div class="chart-title">${m.label} (${m.unit})</div><div class="chart-wrap"><canvas id="chart-${m.key}-${device_id}"></canvas></div></div>`
+  ).join('');
 
   section.innerHTML = `
     <div class="device-header">
@@ -52,15 +54,11 @@ export function initDevice(device, range) {
       </div>
     </div>
     <div class="stats-row" id="stats-row-${device_id}">
-      ${lastTemp != null ? `<div class="stat-card" id="stat-card-temp-${device_id}"><div class="stat-label">現在の温度</div><div class="stat-value temp-color" id="stat-temp-${device_id}">${lastTemp}<span class="stat-unit">°C</span></div></div>` : ''}
-      ${lastHumi != null ? `<div class="stat-card" id="stat-card-humi-${device_id}"><div class="stat-label">現在の湿度</div><div class="stat-value humi-color" id="stat-humi-${device_id}">${lastHumi}<span class="stat-unit">%</span></div></div>` : ''}
-      ${lastCO2  != null ? `<div class="stat-card" id="stat-card-co2-${device_id}"><div class="stat-label">現在のCO2</div><div class="stat-value co2-color" id="stat-co2-${device_id}">${lastCO2}<span class="stat-unit">ppm</span></div></div>` : ''}
-      <div class="stat-card" id="stat-card-count-${device_id}"><div class="stat-label">データ件数（表示 / 全）</div><div class="stat-value" style="color:#e2e8f0;font-size:1.4rem" id="stat-count-${device_id}">${data.length}<span class="stat-unit">件</span></div><div class="stat-sub">全 <span class="stat-sub-num" id="stat-total-${device_id}">${total}</span> 件</div></div>
+      ${statCards}
+      <div class="stat-card" id="stat-card-count-${device_id}"><div class="stat-label">データ件数（表示 / 全）</div><div class="stat-value stat-value-count" id="stat-count-${device_id}">${data.length}<span class="stat-unit">件</span></div><div class="stat-sub">全 <span class="stat-sub-num" id="stat-total-${device_id}">${total}</span> 件</div></div>
     </div>
-    <div class="charts-grid" style="grid-template-columns: repeat(auto-fit, minmax(400px, 1fr))">
-      ${lastTemp != null ? `<div class="chart-card"><div class="chart-title">温度 (°C)</div><div class="chart-wrap"><canvas id="${tid}"></canvas></div></div>` : ''}
-      ${lastHumi != null ? `<div class="chart-card"><div class="chart-title">湿度 (%)</div><div class="chart-wrap"><canvas id="${hid}"></canvas></div></div>` : ''}
-      ${hasCO2           ? `<div class="chart-card"><div class="chart-title">CO2 (ppm)</div><div class="chart-wrap"><canvas id="${cid}"></canvas></div></div>` : ''}
+    <div class="charts-grid">
+      ${chartCards}
     </div>
   `;
 
@@ -72,11 +70,14 @@ export function initDevice(device, range) {
   document.getElementById('dashboard').appendChild(section);
 
   const charts = {};
-  if (lastTemp != null) charts.temp = buildChart(tid, labels, temps,  '温度 (°C)',  PALETTE.temperature, times);
-  if (lastHumi != null) charts.humi = buildChart(hid, labels, humids, '湿度 (%)',   PALETTE.humidity,    times);
-  if (hasCO2)           charts.co2  = buildChart(cid, labels, co2s,   'CO2 (ppm)', PALETTE.co2,         times);
+  for (const m of shown) {
+    charts[m.key] = buildChart(
+      `chart-${m.key}-${device_id}`, labels, series[m.field],
+      `${m.label} (${m.unit})`, m.palette, times
+    );
+  }
 
-  registry.set(device_id, { charts, dataLen: data.length, total, last: latestValues(data, hasCO2) });
+  registry.set(device_id, { charts, dataLen: data.length, total, last });
 }
 
 // 既存セクションの値・グラフ・件数を更新する。新データ取得時はカードをフラッシュ。
@@ -85,35 +86,25 @@ export function updateDevice(device, range) {
   const rec = registry.get(device_id);
   const isNew = data.length > rec.dataLen;
 
-  const { labels, times, temps, humids, co2s, hasCO2 } = extractSeries(data, range);
+  const { labels, times, series } = extractSeries(data, range);
+  const last = latestValues(data);
 
-  if (rec.charts.temp) updateChart(rec.charts.temp, labels, temps,  times);
-  if (rec.charts.humi) updateChart(rec.charts.humi, labels, humids, times);
-  if (rec.charts.co2)  updateChart(rec.charts.co2,  labels, co2s,   times);
+  for (const m of METRICS) {
+    if (rec.charts[m.key]) updateChart(rec.charts[m.key], labels, series[m.field], times);
 
-  const lastTemp = latest(data, 'temperature');
-  const lastHumi = latest(data, 'humidity');
-  const lastCO2  = hasCO2 ? latest(data, 'co2') : null;
-
-  function setStatValue(id, cardId, value, unit) {
-    const el = document.getElementById(id);
-    if (!el) return;
-    const card = document.getElementById(cardId);
-    const current = el.dataset.raw;
-    if (String(value) !== current) {
-      el.innerHTML = `${value}<span class="stat-unit">${unit}</span>`;
-      el.dataset.raw = String(value);
-      if (isNew && card) flashCard(card);
-    }
+    // 統計カードは値が変わったときだけ書き換え、新データならフラッシュする
+    if (last[m.field] == null) continue;
+    const el = document.getElementById(`stat-${m.key}-${device_id}`);
+    if (!el || String(last[m.field]) === el.dataset.raw) continue;
+    el.innerHTML = `${last[m.field]}<span class="stat-unit">${m.unit}</span>`;
+    el.dataset.raw = String(last[m.field]);
+    const card = document.getElementById(`stat-card-${m.key}-${device_id}`);
+    if (isNew && card) flashCard(card);
   }
 
   const lastBattery = latest(data, 'battery');
   const batteryEl = document.getElementById(`battery-tag-${device_id}`);
   if (batteryEl && lastBattery != null) batteryEl.textContent = `🔋 ${lastBattery}%`;
-
-  if (lastTemp != null) setStatValue(`stat-temp-${device_id}`, `stat-card-temp-${device_id}`, lastTemp, '°C');
-  if (lastHumi != null) setStatValue(`stat-humi-${device_id}`, `stat-card-humi-${device_id}`, lastHumi, '%');
-  if (lastCO2  != null) setStatValue(`stat-co2-${device_id}`,  `stat-card-co2-${device_id}`,  lastCO2,  'ppm');
 
   // 表示中の件数（間引き後の点数）
   const countEl = document.getElementById(`stat-count-${device_id}`);
@@ -129,7 +120,7 @@ export function updateDevice(device, range) {
 
   rec.dataLen = data.length;
   rec.total = total;
-  rec.last = latestValues(data, hasCO2);
+  rec.last = last;
 }
 
 // 全デバイスのチャートを破棄して registry とダッシュボード DOM を空にする。

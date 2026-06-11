@@ -1,5 +1,8 @@
 // Chart.js（CDN の UMD グローバル Chart）を使った折れ線グラフの生成・更新。
 
+// 点が多いときはマーカーを消して線だけにする。
+const pointRadius = (count) => (count > 60 ? 0 : 3);
+
 // 新しい折れ線チャートを作る。fullTimes はツールチップに出すフル日時の配列で、
 // dataIndex から参照するため chart.$fullTimes として保持する。
 export function buildChart(canvasId, labels, values, yLabel, color, fullTimes) {
@@ -14,7 +17,7 @@ export function buildChart(canvasId, labels, values, yLabel, color, fullTimes) {
         borderColor: color.line,
         backgroundColor: color.fill,
         borderWidth: 2,
-        pointRadius: labels.length > 60 ? 0 : 3,
+        pointRadius: pointRadius(labels.length),
         pointHoverRadius: 5,
         tension: 0.3,
         fill: true,
@@ -58,6 +61,6 @@ export function updateChart(chart, labels, values, fullTimes) {
   chart.data.labels = labels;
   chart.$fullTimes = fullTimes;
   chart.data.datasets[0].data = values;
-  chart.data.datasets[0].pointRadius = labels.length > 60 ? 0 : 3;
+  chart.data.datasets[0].pointRadius = pointRadius(labels.length);
   chart.update();
 }
