@@ -3,6 +3,13 @@
 // 自動更新の間隔（秒）。ライブ表示（offset=0）のときだけ働く。
 export const REFRESH_SEC = 30;
 
+// SNS 共有のインスタンス初期候補。一度投稿すると使ったドメインが
+// localStorage に保存され、以後はそちらが優先して表示される。
+export const DEFAULT_INSTANCES = {
+  mastodon: ['mstdn.jp'],
+  misskey:  ['misskey.io'],
+};
+
 // グラフの配色（線・塗り）。
 export const PALETTE = {
   temperature: { line: '#f97316', fill: 'rgba(249,115,22,0.12)' },

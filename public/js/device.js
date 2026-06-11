@@ -3,9 +3,20 @@
 import { PALETTE } from './config.js';
 import { deviceIcon, latest, extractSeries } from './format.js';
 import { buildChart, updateChart } from './charts.js';
+import { buildShareButtons } from './share.js';
 
-// device_id -> { charts: {temp, humi, co2}, dataLen, total }
+// device_id -> { charts: {temp, humi, co2}, dataLen, total, last }
 export const registry = new Map();
+
+// SNS 共有用に、表示中データの最新値（時刻・温度・湿度・CO2）をまとめる。
+function latestValues(data, hasCO2) {
+  return {
+    time:        latest(data, 'time'),
+    temperature: latest(data, 'temperature'),
+    humidity:    latest(data, 'humidity'),
+    co2:         hasCO2 ? latest(data, 'co2') : null,
+  };
+}
 
 // CSS アニメーションを再生し直すためのリフロー付きフラッシュ。
 function flashCard(el) {
@@ -53,6 +64,11 @@ export function initDevice(device, range) {
     </div>
   `;
 
+  // 共有ボタン（ヘッダー右端）。クリック時に registry から最新値を取り直す。
+  section.querySelector('.device-header').appendChild(
+    buildShareButtons(() => ({ name, ...registry.get(device_id).last }))
+  );
+
   document.getElementById('dashboard').appendChild(section);
 
   const charts = {};
@@ -60,7 +76,7 @@ export function initDevice(device, range) {
   if (lastHumi != null) charts.humi = buildChart(hid, labels, humids, '湿度 (%)',   PALETTE.humidity,    times);
   if (hasCO2)           charts.co2  = buildChart(cid, labels, co2s,   'CO2 (ppm)', PALETTE.co2,         times);
 
-  registry.set(device_id, { charts, dataLen: data.length, total });
+  registry.set(device_id, { charts, dataLen: data.length, total, last: latestValues(data, hasCO2) });
 }
 
 // 既存セクションの値・グラフ・件数を更新する。新データ取得時はカードをフラッシュ。
@@ -113,6 +129,7 @@ export function updateDevice(device, range) {
 
   rec.dataLen = data.length;
   rec.total = total;
+  rec.last = latestValues(data, hasCO2);
 }
 
 // 全デバイスのチャートを破棄して registry とダッシュボード DOM を空にする。
