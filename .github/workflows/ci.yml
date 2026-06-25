@@ -15,8 +15,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # package.json の engines（>=18）に合わせ、下限と現行 LTS を検証する。
-        node-version: ['18.x', '20.x', '22.x']
+        # フロントの ESM（.js）はモジュール構文の自動判定に依存するため Node 20+ が必須。
+        # package.json の engines（>=20）に合わせ、現行 LTS を検証する。
+        node-version: ['20.x', '22.x']
 
     steps:
       - uses: actions/checkout@v4

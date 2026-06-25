@@ -17,7 +17,7 @@ SwitchBot デバイスの温度・湿度・CO2 データをリアルタイムで
 
 ## 動作要件
 
-- Node.js 18 以上
+- Node.js 20 以上
 - MySQL 8 以上
 - SwitchBot のデータが格納された `switchbot_db` データベース
 
@@ -156,7 +156,7 @@ npm test
 ```
 
 `main` への push と Pull Request では、GitHub Actions（`.github/workflows/ci.yml`）が
-Node.js 18 / 20 / 22 でテストを自動実行します。
+Node.js 20 / 22 でテストを自動実行します。
 
 ## ディレクトリ構成
 

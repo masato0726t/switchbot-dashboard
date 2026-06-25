@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "SwitchBot デバイスの温度・湿度・CO2 を可視化する Web ダッシュボード",
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "scripts": {
     "start": "node server.js",
