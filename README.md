@@ -155,8 +155,20 @@ Node 標準のテストランナーで実行します（追加依存なし）。
 npm test
 ```
 
+## Lint
+
+ESLint（フラット設定 `eslint.config.js`）でコードを静的解析します。backend（CommonJS/Node）と
+frontend（ブラウザ ESM）でグローバルと sourceType を切り替えています。
+
+```bash
+npm run lint           # チェックのみ
+npx eslint . --fix     # 自動修正できるものは修正
+```
+
+## CI
+
 `main` への push と Pull Request では、GitHub Actions（`.github/workflows/ci.yml`）が
-Node.js 20 / 22 でテストを自動実行します。
+**Lint**（ESLint）と**テスト**（Node.js 20 / 22）を自動実行します。
 
 ## ディレクトリ構成
 
@@ -196,6 +208,7 @@ switchbot-dashboard/
 │   └── workflows/
 │       └── ci.yml       # GitHub Actions（Node 18/20/22 でテスト実行）
 ├── server.js            # Express サーバー・API
+├── eslint.config.js     # ESLint フラット設定（backend/frontend で切替）
 ├── package.json
 ├── .env.example         # 環境変数テンプレート
 └── .gitignore

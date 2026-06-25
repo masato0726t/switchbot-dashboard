@@ -41,7 +41,7 @@ test('offset=0 は最新ウィンドウ（下限のみ・count をバインド�
 test('offset>0 は過去ウィンドウ（上下限あり・count を倍数でバインド）', () => {
   const { clause, params } = windowClause('24h', 2);
   assert.match(clause, /recorded_at >= DATE_SUB\(NOW\(\), INTERVAL \? HOUR\)/);
-  assert.match(clause, /recorded_at <  DATE_SUB\(NOW\(\), INTERVAL \? HOUR\)/);
+  assert.match(clause, /recorded_at < {2}DATE_SUB\(NOW\(\), INTERVAL \? HOUR\)/);
   assert.deepEqual(params, [24 * 3, 24 * 2]);   // [遠い境界, 近い境界]
 });
 
