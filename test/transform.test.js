@@ -91,6 +91,23 @@ test('totals 未指定なら total は表示範囲の点数で代替する', () 
   assert.equal(out[0].total, 1);
 });
 
+test('placement 未設定なら device_type から推測する', () => {
+  const logs = [
+    log(1, '2026-05-31T10:00:00Z', { temperature: 24, humidity: 55 }),  // WoIOSensor → IO 含む
+    log(2, '2026-05-31T10:00:00Z', { temperature: 22, humidity: 60 }),  // MeterPro(CO2)
+  ];
+  const out = buildSensorData(DEVICES, logs);
+  assert.equal(out.find(d => d.device_id === 1).placement, 'outdoor');
+  assert.equal(out.find(d => d.device_id === 2).placement, 'indoor');
+});
+
+test('placement が指定されていれば推測より優先する', () => {
+  const devices = [{ id: 1, device_name: 'リビング', device_type: 'WoIOSensor', placement: 'indoor' }];
+  const logs = [log(1, '2026-05-31T10:00:00Z', { temperature: 24, humidity: 55 })];
+  const out = buildSensorData(devices, logs);
+  assert.equal(out[0].placement, 'indoor');   // 推測(outdoor)ではなく設定値を使う
+});
+
 test('MAX_POINTS がエクスポートされている', () => {
   assert.equal(typeof MAX_POINTS, 'number');
   assert.ok(MAX_POINTS > 0);

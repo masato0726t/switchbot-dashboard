@@ -1,5 +1,7 @@
 # SwitchBot センサーダッシュボード
 
+[![CI](https://github.com/masato0726t/switchbot-dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/masato0726t/switchbot-dashboard/actions/workflows/ci.yml)
+
 SwitchBot デバイスの温度・湿度・CO2 データをリアルタイムで可視化する Web ダッシュボードです。
 
 ## 機能
@@ -153,6 +155,9 @@ Node 標準のテストランナーで実行します（追加依存なし）。
 npm test
 ```
 
+`main` への push と Pull Request では、GitHub Actions（`.github/workflows/ci.yml`）が
+Node.js 18 / 20 / 22 でテストを自動実行します。
+
 ## ディレクトリ構成
 
 ```
@@ -187,6 +192,9 @@ switchbot-dashboard/
 │   ├── placement.test.js
 │   ├── clothing.test.mjs
 │   └── downsample.test.js
+├── .github/
+│   └── workflows/
+│       └── ci.yml       # GitHub Actions（Node 18/20/22 でテスト実行）
 ├── server.js            # Express サーバー・API
 ├── package.json
 ├── .env.example         # 環境変数テンプレート

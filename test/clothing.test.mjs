@@ -42,6 +42,22 @@ test('outdoorAdvice は体感気温の帯ごとに服装を返す', () => {
   assert.equal(outdoorAdvice(28, 30).advice, '半袖でOK');
 });
 
+test('indoorAdvice は肌寒い・やや暑い帯も返す', () => {
+  // 16°C / 45% → THI ≈ 60.0 直下 → 肌寒い（55〜60）
+  assert.equal(indoorAdvice(16, 45).feeling, '肌寒い');
+  // 25°C / 50% → THI ≈ 71.8 → やや暑い（70〜75）
+  assert.equal(indoorAdvice(25, 50).feeling, 'やや暑い');
+});
+
+test('outdoorAdvice は下限以上で帯を判定する（境界）', () => {
+  // 27°C 未満は feels = 気温なので、気温がそのまま境界になる
+  assert.equal(outdoorAdvice(25, 50).advice, '半袖でOK');            // 25 ちょうどは「暑い」帯
+  assert.equal(outdoorAdvice(24.9, 50).advice, '長袖シャツ一枚');     // 25 未満は一段下
+  assert.equal(outdoorAdvice(15, 50).advice, '薄手の羽織り・カーディガン'); // 15 ちょうど
+  assert.equal(outdoorAdvice(5, 50).advice, 'コート・厚手の上着');     // 5 ちょうど
+  assert.equal(outdoorAdvice(4.9, 50).advice, 'ダウンなど真冬の装備'); // 5 未満は最下帯
+});
+
 test('outdoorAdvice は 27°C 以上で Heat Index による体感を使う', () => {
   // 蒸し暑い日は体感が実気温を上回るので value > temp
   assert.ok(outdoorAdvice(33, 70).value > 33);
