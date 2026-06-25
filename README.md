@@ -21,38 +21,18 @@ SwitchBot デバイスの温度・湿度・CO2 データをリアルタイムで
 
 ### データベーステーブル構成
 
-```sql
--- デバイス一覧
-CREATE TABLE devices (
-  id INT PRIMARY KEY,
-  device_name VARCHAR(255),
-  device_type VARCHAR(255),
-  is_virtual_infrared TINYINT(1)
-);
+テーブルの DDL はすべて `ddl/` に外出ししてあります。
 
--- センサーログ
-CREATE TABLE device_status_logs (
-  id INT PRIMARY KEY AUTO_INCREMENT,
-  device_id INT,
-  status_data JSON,
-  recorded_at DATETIME
-);
-```
+| ファイル | テーブル | 管理 | 備考 |
+|---------|---------|------|------|
+| `ddl/devices.sql`            | `devices`            | データ収集側 | 参照のみ（自動実行しない） |
+| `ddl/device_status_logs.sql` | `device_status_logs` | データ収集側 | 参照のみ（自動実行しない） |
+| `ddl/device_settings.sql`    | `device_settings`    | ダッシュボード | **起動時に自動実行**（手動作成不要） |
 
-`devices` / `device_status_logs` はデータ収集側が管理するテーブルです。
-ダッシュボードは設置場所（室内 / 屋外）を保持するための専用テーブル
-`device_settings` を**起動時に自動作成**します（収集側テーブルには手を加えません）。
-
-この DDL は `ddl/device_settings.sql` に外出ししてあり、`server.js` が起動時に
-読み込んで実行します。
-
-```sql
--- ddl/device_settings.sql（ダッシュボードが自己管理。手動作成は不要）
-CREATE TABLE IF NOT EXISTS device_settings (
-  device_id INT PRIMARY KEY,
-  placement ENUM('indoor', 'outdoor') NOT NULL DEFAULT 'indoor'
-);
-```
+`devices` / `device_status_logs` はデータ収集側が管理するテーブルで、参考用に
+DDL を置いてあるだけです。ダッシュボードは設置場所（室内 / 屋外）を保持する
+`device_settings` のみを自己管理し、`server.js` が起動時に `ddl/device_settings.sql`
+を読み込んで実行します（収集側テーブルには手を加えません）。
 
 設定が無いデバイスは `device_type` から初期推測します（`IO` を含む種別＝屋外、
 それ以外＝室内）。最終的な設置場所は画面のトグルでいつでも変更できます。
@@ -193,8 +173,10 @@ switchbot-dashboard/
 │   ├── transform.js     # DB 行 → API レスポンスへの整形・間引き
 │   ├── placement.js     # 設置場所の初期推測・バリデーション
 │   └── downsample.js    # LTTB ダウンサンプリング
-├── ddl/                 # ダッシュボードが自己管理するテーブルの DDL
-│   └── device_settings.sql  # 設置場所テーブル（起動時に自動実行）
+├── ddl/                 # テーブル DDL
+│   ├── devices.sql              # デバイス一覧（収集側管理・参照用）
+│   ├── device_status_logs.sql   # センサーログ（収集側管理・参照用）
+│   └── device_settings.sql      # 設置場所テーブル（起動時に自動実行）
 ├── test/                # node:test による単体テスト
 │   ├── ranges.test.js
 │   ├── transform.test.js
