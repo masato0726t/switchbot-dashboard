@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const mysql = require('mysql2/promise');
+const fs = require('fs');
 const path = require('path');
 
 const { windowClause } = require('./lib/ranges');
@@ -37,17 +38,16 @@ app.use((req, res, next) => {
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// デバイスの設置場所（室内 / 屋外）を保持するダッシュボード専用テーブル。
-// データ収集側の devices テーブルには触れず、ここで自己管理する。
-// 起動時に無ければ作成するので手動マイグレーションは不要。
+// ダッシュボード専用テーブルの DDL は ddl/ に外出しし、起動時に読み込んで実行する。
+// データ収集側の devices テーブルには触れず、ここで自己管理する（手動マイグレーション不要）。
+const DDL_DIR = path.join(__dirname, 'ddl');
+
 async function ensureSettingsTable() {
   let conn;
   try {
+    const ddl = fs.readFileSync(path.join(DDL_DIR, 'device_settings.sql'), 'utf8');
     conn = await mysql.createConnection(dbConfig);
-    await conn.query(`CREATE TABLE IF NOT EXISTS device_settings (
-      device_id INT PRIMARY KEY,
-      placement ENUM('indoor', 'outdoor') NOT NULL DEFAULT 'indoor'
-    )`);
+    await conn.query(ddl);
     log.info('device_settings テーブルを確認');
   } catch (err) {
     log.error('device_settings テーブルの確認に失敗', err);

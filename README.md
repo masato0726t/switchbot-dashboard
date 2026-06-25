@@ -43,9 +43,12 @@ CREATE TABLE device_status_logs (
 ダッシュボードは設置場所（室内 / 屋外）を保持するための専用テーブル
 `device_settings` を**起動時に自動作成**します（収集側テーブルには手を加えません）。
 
+この DDL は `ddl/device_settings.sql` に外出ししてあり、`server.js` が起動時に
+読み込んで実行します。
+
 ```sql
--- 設置場所（ダッシュボードが自己管理。手動作成は不要）
-CREATE TABLE device_settings (
+-- ddl/device_settings.sql（ダッシュボードが自己管理。手動作成は不要）
+CREATE TABLE IF NOT EXISTS device_settings (
   device_id INT PRIMARY KEY,
   placement ENUM('indoor', 'outdoor') NOT NULL DEFAULT 'indoor'
 );
@@ -190,6 +193,8 @@ switchbot-dashboard/
 │   ├── transform.js     # DB 行 → API レスポンスへの整形・間引き
 │   ├── placement.js     # 設置場所の初期推測・バリデーション
 │   └── downsample.js    # LTTB ダウンサンプリング
+├── ddl/                 # ダッシュボードが自己管理するテーブルの DDL
+│   └── device_settings.sql  # 設置場所テーブル（起動時に自動実行）
 ├── test/                # node:test による単体テスト
 │   ├── ranges.test.js
 │   ├── transform.test.js
