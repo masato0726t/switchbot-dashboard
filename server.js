@@ -3,7 +3,7 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 
-const { withConnection } = require('./lib/db');
+const { withConnection, closePool } = require('./lib/db');
 const { windowClause } = require('./lib/ranges');
 const { buildSensorData } = require('./lib/transform');
 const { isValidPlacement } = require('./lib/placement');
@@ -16,6 +16,31 @@ const PORT = process.env.PORT || 3000;
 // 総件数の集計と表示窓の抽出で必ず同じ条件を使い、件数の整合を保つ。
 const SENSOR_LOG_FILTER = `JSON_LENGTH(l.status_data) > 0
           AND JSON_EXTRACT(l.status_data, '$.temperature') IS NOT NULL`;
+
+// 総件数クエリは range/offset に依存せず全行を走査する重い集計で、JSON 関数の
+// ため索引も効かない。値は新規ログでしか増えず変化が緩やかなので、TTL の間は
+// 結果を使い回して実行頻度を下げる（UI は 30 秒ごとに更新するため毎回は不要）。
+const TOTALS_TTL_MS = Number(process.env.TOTALS_TTL_MS) || 60_000;
+let totalsCache = { value: null, at: 0 };
+
+async function getTotals(conn) {
+  const now = Date.now();
+  if (totalsCache.value && now - totalsCache.at < TOTALS_TTL_MS) {
+    log.debug('総件数キャッシュ命中');
+    return totalsCache.value;
+  }
+  const [totalRows] = await conn.query(
+    `SELECT l.device_id, COUNT(*) AS total
+       FROM device_status_logs l
+      WHERE ${SENSOR_LOG_FILTER}
+      GROUP BY l.device_id`
+  );
+  const totals = {};
+  for (const r of totalRows) totals[r.device_id] = Number(r.total);
+  totalsCache = { value: totals, at: now };
+  log.debug('総件数キャッシュ更新');
+  return totals;
+}
 
 // 全リクエストのアクセスログ。完了時にステータスと所要時間を出力する。
 app.use((req, res, next) => {
@@ -61,14 +86,8 @@ app.get('/api/sensor-data', async (req, res) => {
       log.debug(`デバイス取得: ${devices.length} 件`);
 
       // 全期間の総件数（表示範囲・offset に依存しない DB 行数）をデバイス別に集計。
-      const [totalRows] = await conn.query(
-        `SELECT l.device_id, COUNT(*) AS total
-           FROM device_status_logs l
-          WHERE ${SENSOR_LOG_FILTER}
-          GROUP BY l.device_id`
-      );
-      const totals = {};
-      for (const r of totalRows) totals[r.device_id] = Number(r.total);
+      // 重い全行スキャンのため TTL キャッシュ経由で取得する。
+      const totals = await getTotals(conn);
 
       const { clause, params } = windowClause(range, offset);
 
@@ -145,10 +164,16 @@ function shutdown(signal) {
     log.info('listen 前のため即終了');
     process.exit(0);
   }
-  server.close((err) => {
+  server.close(async (err) => {
     if (err) {
       log.error('server.close でエラー', err);
       process.exit(1);
+    }
+    // HTTP を閉じ切ってから DB プールも解放する。残すとプロセスが終了しない。
+    try {
+      await closePool();
+    } catch (poolErr) {
+      log.error('DB プールのクローズに失敗', poolErr);
     }
     log.info('全接続をクローズ、プロセス終了');
     process.exit(0);
