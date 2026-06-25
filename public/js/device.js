@@ -4,7 +4,7 @@ import { METRICS } from './config.js';
 import { deviceIcon, latest, extractSeries } from './format.js';
 import { buildChart, updateChart } from './charts.js';
 import { buildShareButtons } from './share.js';
-import { buildPlacementToggle } from './placement.js';
+import { buildPlacementToggle } from './placement-toggle.js';
 import { clothingFor } from './clothing.js';
 
 // device_id -> { charts: {temp, humi, co2}, dataLen, total, last, placement }

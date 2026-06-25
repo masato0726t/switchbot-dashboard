@@ -1,9 +1,9 @@
 require('dotenv').config();
 const express = require('express');
-const mysql = require('mysql2/promise');
 const fs = require('fs');
 const path = require('path');
 
+const { withConnection } = require('./lib/db');
 const { windowClause } = require('./lib/ranges');
 const { buildSensorData } = require('./lib/transform');
 const { isValidPlacement } = require('./lib/placement');
@@ -11,14 +11,6 @@ const log = require('./lib/logger');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-
-const dbConfig = {
-  host:     process.env.DB_HOST,
-  port:     Number(process.env.DB_PORT),
-  user:     process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-};
 
 // ダッシュボードが扱う有効なセンサー行だけに絞る共通フィルタ。
 // 総件数の集計と表示窓の抽出で必ず同じ条件を使い、件数の整合を保つ。
@@ -43,16 +35,12 @@ app.use(express.static(path.join(__dirname, 'public')));
 const DDL_DIR = path.join(__dirname, 'ddl');
 
 async function ensureSettingsTable() {
-  let conn;
   try {
     const ddl = fs.readFileSync(path.join(DDL_DIR, 'device_settings.sql'), 'utf8');
-    conn = await mysql.createConnection(dbConfig);
-    await conn.query(ddl);
+    await withConnection((conn) => conn.query(ddl));
     log.info('device_settings テーブルを確認');
   } catch (err) {
     log.error('device_settings テーブルの確認に失敗', err);
-  } finally {
-    if (conn) await conn.end();
   }
 }
 
@@ -61,58 +49,55 @@ app.get('/api/sensor-data', async (req, res) => {
   const { range, offset } = req.query;
   log.info('sensor-data リクエスト受信', { range: range ?? '(default)', offset: offset ?? 0 });
 
-  let conn;
   try {
-    conn = await mysql.createConnection(dbConfig);
-    log.debug(`DB 接続確立 (${dbConfig.host}:${dbConfig.port}/${dbConfig.database})`);
+    const result = await withConnection(async (conn) => {
+      const [devices] = await conn.query(
+        `SELECT d.id, d.device_name, d.device_type, s.placement
+           FROM devices d
+           LEFT JOIN device_settings s ON s.device_id = d.id
+          WHERE d.is_virtual_infrared = 0
+          ORDER BY d.id`
+      );
+      log.debug(`デバイス取得: ${devices.length} 件`);
 
-    const [devices] = await conn.query(
-      `SELECT d.id, d.device_name, d.device_type, s.placement
-         FROM devices d
-         LEFT JOIN device_settings s ON s.device_id = d.id
-        WHERE d.is_virtual_infrared = 0
-        ORDER BY d.id`
-    );
-    log.debug(`デバイス取得: ${devices.length} 件`);
+      // 全期間の総件数（表示範囲・offset に依存しない DB 行数）をデバイス別に集計。
+      const [totalRows] = await conn.query(
+        `SELECT l.device_id, COUNT(*) AS total
+           FROM device_status_logs l
+          WHERE ${SENSOR_LOG_FILTER}
+          GROUP BY l.device_id`
+      );
+      const totals = {};
+      for (const r of totalRows) totals[r.device_id] = Number(r.total);
 
-    // 全期間の総件数（表示範囲・offset に依存しない DB 行数）をデバイス別に集計。
-    const [totalRows] = await conn.query(
-      `SELECT l.device_id, COUNT(*) AS total
+      const { clause, params } = windowClause(range, offset);
+
+      const [logs] = await conn.query(
+        `SELECT
+          l.device_id,
+          l.status_data,
+          l.recorded_at
          FROM device_status_logs l
-        WHERE ${SENSOR_LOG_FILTER}
-        GROUP BY l.device_id`
-    );
-    const totals = {};
-    for (const r of totalRows) totals[r.device_id] = Number(r.total);
+         WHERE ${SENSOR_LOG_FILTER}
+           ${clause}
+         ORDER BY l.device_id, l.recorded_at ASC`,
+        params
+      );
+      log.debug(`ログ取得: ${logs.length} 行`);
 
-    const { clause, params } = windowClause(range, offset);
-
-    const [logs] = await conn.query(
-      `SELECT
-        l.device_id,
-        l.status_data,
-        l.recorded_at
-       FROM device_status_logs l
-       WHERE ${SENSOR_LOG_FILTER}
-         ${clause}
-       ORDER BY l.device_id, l.recorded_at ASC`,
-      params
-    );
-    log.debug(`ログ取得: ${logs.length} 行`);
-
-    const result = buildSensorData(devices, logs, totals);
-    log.info(`sensor-data 応答`, {
-      devices: result.length,
-      logs: logs.length,
-      points: result.reduce((sum, d) => sum + d.data.length, 0),
-      ms: Date.now() - t0,
+      const data = buildSensorData(devices, logs, totals);
+      log.info(`sensor-data 応答`, {
+        devices: data.length,
+        logs: logs.length,
+        points: data.reduce((sum, d) => sum + d.data.length, 0),
+        ms: Date.now() - t0,
+      });
+      return data;
     });
     res.json(result);
   } catch (err) {
     log.error('sensor-data 処理に失敗', err);
     res.status(500).json({ error: err.message });
-  } finally {
-    if (conn) await conn.end();
   }
 });
 
@@ -125,21 +110,17 @@ app.put('/api/devices/:id/placement', async (req, res) => {
     return res.status(400).json({ error: 'placement は indoor / outdoor のいずれか、id は整数が必要です' });
   }
 
-  let conn;
   try {
-    conn = await mysql.createConnection(dbConfig);
-    await conn.query(
+    await withConnection((conn) => conn.query(
       `INSERT INTO device_settings (device_id, placement) VALUES (?, ?)
          ON DUPLICATE KEY UPDATE placement = VALUES(placement)`,
       [id, placement]
-    );
+    ));
     log.info('placement を更新', { device_id: id, placement });
     res.json({ device_id: id, placement });
   } catch (err) {
     log.error('placement 更新に失敗', err);
     res.status(500).json({ error: err.message });
-  } finally {
-    if (conn) await conn.end();
   }
 });
 

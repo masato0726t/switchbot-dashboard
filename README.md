@@ -145,7 +145,9 @@ UI の「データ件数（表示 / 全）」カードでは、メインに `dat
 
 ## テスト
 
-純粋ロジック（`lib/`）に対する単体テストを Node 標準のテストランナーで実行します（追加依存なし）。
+純粋ロジック（`lib/` の純粋モジュールと `public/js/` の純粋ヘルパー）に対する単体テストを
+Node 標準のテストランナーで実行します（追加依存なし）。`db.js` / `logger.js` などインフラ層は
+対象外です。
 
 ```bash
 npm test
@@ -163,16 +165,18 @@ switchbot-dashboard/
 │       ├── app.js       # エントリ：データ取得・自動更新・初期化
 │       ├── config.js    # 定数（更新間隔・配色・表示範囲）
 │       ├── format.js    # 表示用の純粋ヘルパー（ラベル整形・系列抽出）
-│       ├── clothing.js  # 体感温度 → 服装提案の純粋ロジック（室内/屋外）
-│       ├── placement.js # 設置場所トグル UI（室内/屋外の切替・保存）
-│       ├── charts.js    # Chart.js グラフの生成・更新
-│       ├── device.js    # デバイスセクションの描画・更新・破棄
-│       └── nav.js       # 範囲／ページ状態とナビ UI
-├── lib/                 # DB 非依存の純粋ロジック（テスト対象）
-│   ├── ranges.js        # 表示範囲・ページオフセット → SQL 句とバインド値の解決
-│   ├── transform.js     # DB 行 → API レスポンスへの整形・間引き
-│   ├── placement.js     # 設置場所の初期推測・バリデーション
-│   └── downsample.js    # LTTB ダウンサンプリング
+│       ├── clothing.js       # 体感温度 → 服装提案の純粋ロジック（室内/屋外）
+│       ├── placement-toggle.js  # 設置場所トグル UI（室内/屋外の切替・保存）
+│       ├── charts.js         # Chart.js グラフの生成・更新
+│       ├── device.js         # デバイスセクションの描画・更新・破棄
+│       └── nav.js            # 範囲／ページ状態とナビ UI
+├── lib/                 # サーバー共通モジュール
+│   ├── ranges.js        # 〔純粋〕表示範囲・ページオフセット → SQL 句とバインド値の解決
+│   ├── transform.js     # 〔純粋〕DB 行 → API レスポンスへの整形・間引き
+│   ├── placement.js     # 〔純粋〕設置場所の初期推測・バリデーション
+│   ├── downsample.js    # 〔純粋〕LTTB ダウンサンプリング
+│   ├── db.js            # 〔インフラ〕MySQL 接続設定と接続ヘルパー
+│   └── logger.js        # 〔インフラ〕JST タイムスタンプ付きロガー
 ├── ddl/                 # テーブル DDL
 │   ├── devices.sql              # デバイス一覧（収集側管理・参照用）
 │   ├── device_status_logs.sql   # センサーログ（収集側管理・参照用）
