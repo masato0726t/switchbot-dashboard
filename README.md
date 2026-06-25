@@ -5,6 +5,7 @@ SwitchBot デバイスの温度・湿度・CO2 データをリアルタイムで
 ## 機能
 
 - 温度・湿度・CO2 の現在値をカード表示
+- 体感温度ベースの服装提案（デバイスごとに室内 / 屋外で判定を切替）
 - 時系列グラフ（Chart.js）
 - 表示範囲の切り替え（1時間 / 6時間 / 12時間 / 24時間 / 1週間 / 1ヶ月 / 1年 / 3年 / 全部）
 - 過去データへのページング（「← 過去へ」で遡り、「新しい方へ →」「最新へ ⏭」で戻る）
@@ -37,6 +38,21 @@ CREATE TABLE device_status_logs (
   recorded_at DATETIME
 );
 ```
+
+`devices` / `device_status_logs` はデータ収集側が管理するテーブルです。
+ダッシュボードは設置場所（室内 / 屋外）を保持するための専用テーブル
+`device_settings` を**起動時に自動作成**します（収集側テーブルには手を加えません）。
+
+```sql
+-- 設置場所（ダッシュボードが自己管理。手動作成は不要）
+CREATE TABLE device_settings (
+  device_id INT PRIMARY KEY,
+  placement ENUM('indoor', 'outdoor') NOT NULL DEFAULT 'indoor'
+);
+```
+
+設定が無いデバイスは `device_type` から初期推測します（`IO` を含む種別＝屋外、
+それ以外＝室内）。最終的な設置場所は画面のトグルでいつでも変更できます。
 
 `status_data` の JSON 例:
 ```json
@@ -120,6 +136,21 @@ UI の「データ件数（表示 / 全）」カードでは、メインに `dat
 クライアントが `ts` から表示範囲に応じて短く整形し（短時間=時刻のみ / 週・月=月日 / 年=年月）、
 ツールチップにはフル日時（`time`）を表示します。
 
+各デバイスには `placement`（`indoor` / `outdoor`）も付きます。クライアントはこれを使い、
+最新の温度・湿度から体感温度を求めて服装提案を表示します（室内は不快指数 THI、屋外は
+暑い側のみ Heat Index・寒い側は気温ベース）。
+
+### `PUT /api/devices/:id/placement`
+
+デバイスの設置場所を更新します。リクエストボディは JSON で `placement` を指定します。
+
+```json
+{ "placement": "outdoor" }
+```
+
+`placement` は `indoor` / `outdoor` のいずれかのみ受け付け、それ以外は `400` を返します。
+成功時は `{ "device_id": 1, "placement": "outdoor" }` を返します。
+
 ## ダウンサンプリングについて
 
 長期間（1 年・3 年・全部など）を表示するとデータ点数が膨大になり描画が重くなるため、
@@ -149,16 +180,21 @@ switchbot-dashboard/
 │       ├── app.js       # エントリ：データ取得・自動更新・初期化
 │       ├── config.js    # 定数（更新間隔・配色・表示範囲）
 │       ├── format.js    # 表示用の純粋ヘルパー（ラベル整形・系列抽出）
+│       ├── clothing.js  # 体感温度 → 服装提案の純粋ロジック（室内/屋外）
+│       ├── placement.js # 設置場所トグル UI（室内/屋外の切替・保存）
 │       ├── charts.js    # Chart.js グラフの生成・更新
 │       ├── device.js    # デバイスセクションの描画・更新・破棄
 │       └── nav.js       # 範囲／ページ状態とナビ UI
 ├── lib/                 # DB 非依存の純粋ロジック（テスト対象）
 │   ├── ranges.js        # 表示範囲・ページオフセット → SQL 句とバインド値の解決
 │   ├── transform.js     # DB 行 → API レスポンスへの整形・間引き
+│   ├── placement.js     # 設置場所の初期推測・バリデーション
 │   └── downsample.js    # LTTB ダウンサンプリング
 ├── test/                # node:test による単体テスト
 │   ├── ranges.test.js
 │   ├── transform.test.js
+│   ├── placement.test.js
+│   ├── clothing.test.mjs
 │   └── downsample.test.js
 ├── server.js            # Express サーバー・API
 ├── package.json

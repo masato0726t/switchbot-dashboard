@@ -173,6 +173,30 @@ main { padding: 24px; max-width: 1400px; margin: 0 auto; }
   padding: 1px 7px; border-radius: 9999px; font-size: 0.68rem;
 }
 
+/* 服装提案（体感温度ベース）。デバイス名の下に 1 行で出す。 */
+.clothing-line {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 6px; font-size: 0.8rem; color: #cbd5e1;
+}
+.clothing-icon { font-size: 0.95rem; line-height: 1; }
+.clothing-advice { font-weight: 600; color: #f1f5f9; }
+.clothing-feeling { font-size: 0.72rem; color: #64748b; }
+
+/* 設置場所トグル（室内 / 屋外）。共有ボタンと並べて右寄せにする。 */
+.placement-toggle {
+  margin-left: auto; display: inline-flex; align-items: stretch;
+  background: #1e293b; border: 1px solid #334155;
+  border-radius: 9999px; overflow: hidden;
+}
+.placement-btn {
+  background: transparent; border: none; cursor: pointer;
+  color: #94a3b8; font-size: 0.72rem; font-weight: 600;
+  padding: 4px 14px; transition: all 0.2s;
+}
+.placement-btn:hover:not(.active) { color: #e2e8f0; }
+.placement-btn.active { background: #0ea5e9; color: #04263a; }
+.placement-btn:disabled { opacity: 0.6; cursor: default; }
+
 .stats-row { display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
 .stat-card {
   background: #1e293b; border: 1px solid #334155;

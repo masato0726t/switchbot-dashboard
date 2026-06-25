@@ -5,6 +5,7 @@ const path = require('path');
 
 const { windowClause } = require('./lib/ranges');
 const { buildSensorData } = require('./lib/transform');
+const { isValidPlacement } = require('./lib/placement');
 const log = require('./lib/logger');
 
 const app = express();
@@ -33,7 +34,27 @@ app.use((req, res, next) => {
   next();
 });
 
+app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+
+// デバイスの設置場所（室内 / 屋外）を保持するダッシュボード専用テーブル。
+// データ収集側の devices テーブルには触れず、ここで自己管理する。
+// 起動時に無ければ作成するので手動マイグレーションは不要。
+async function ensureSettingsTable() {
+  let conn;
+  try {
+    conn = await mysql.createConnection(dbConfig);
+    await conn.query(`CREATE TABLE IF NOT EXISTS device_settings (
+      device_id INT PRIMARY KEY,
+      placement ENUM('indoor', 'outdoor') NOT NULL DEFAULT 'indoor'
+    )`);
+    log.info('device_settings テーブルを確認');
+  } catch (err) {
+    log.error('device_settings テーブルの確認に失敗', err);
+  } finally {
+    if (conn) await conn.end();
+  }
+}
 
 app.get('/api/sensor-data', async (req, res) => {
   const t0 = Date.now();
@@ -46,7 +67,11 @@ app.get('/api/sensor-data', async (req, res) => {
     log.debug(`DB 接続確立 (${dbConfig.host}:${dbConfig.port}/${dbConfig.database})`);
 
     const [devices] = await conn.query(
-      `SELECT id, device_name, device_type FROM devices WHERE is_virtual_infrared = 0 ORDER BY id`
+      `SELECT d.id, d.device_name, d.device_type, s.placement
+         FROM devices d
+         LEFT JOIN device_settings s ON s.device_id = d.id
+        WHERE d.is_virtual_infrared = 0
+        ORDER BY d.id`
     );
     log.debug(`デバイス取得: ${devices.length} 件`);
 
@@ -91,13 +116,54 @@ app.get('/api/sensor-data', async (req, res) => {
   }
 });
 
-const server = app.listen(PORT, () => {
-  log.info(`SwitchBot ダッシュボード起動: http://localhost:${PORT} (pid ${process.pid})`);
+// デバイスの設置場所（室内 / 屋外）を更新する。服装提案の室内 / 屋外の振り分けに使う。
+app.put('/api/devices/:id/placement', async (req, res) => {
+  const id = Number(req.params.id);
+  const { placement } = req.body || {};
+  if (!Number.isInteger(id) || !isValidPlacement(placement)) {
+    log.warn('placement 更新の不正リクエスト', { id: req.params.id, placement });
+    return res.status(400).json({ error: 'placement は indoor / outdoor のいずれか、id は整数が必要です' });
+  }
+
+  let conn;
+  try {
+    conn = await mysql.createConnection(dbConfig);
+    await conn.query(
+      `INSERT INTO device_settings (device_id, placement) VALUES (?, ?)
+         ON DUPLICATE KEY UPDATE placement = VALUES(placement)`,
+      [id, placement]
+    );
+    log.info('placement を更新', { device_id: id, placement });
+    res.json({ device_id: id, placement });
+  } catch (err) {
+    log.error('placement 更新に失敗', err);
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (conn) await conn.end();
+  }
 });
+
+let server;
+
+// 設置場所テーブルの用意を待ってから listen する。先に listen すると、
+// テーブル作成完了前のリクエストで sensor-data の JOIN が失敗し得るため。
+async function start() {
+  await ensureSettingsTable();
+  server = app.listen(PORT, () => {
+    log.info(`SwitchBot ダッシュボード起動: http://localhost:${PORT} (pid ${process.pid})`);
+  });
+}
+
+start();
 
 // PM2 の reload / stop（SIGINT・SIGTERM）で接続を捌き切ってから終了する。
 function shutdown(signal) {
   log.info(`${signal} を受信、graceful shutdown 開始`);
+  // listen 前（テーブル準備中）にシグナルを受けた場合は即終了する。
+  if (!server) {
+    log.info('listen 前のため即終了');
+    process.exit(0);
+  }
   server.close((err) => {
     if (err) {
       log.error('server.close でエラー', err);

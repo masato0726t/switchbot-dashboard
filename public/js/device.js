@@ -4,9 +4,28 @@ import { METRICS } from './config.js';
 import { deviceIcon, latest, extractSeries } from './format.js';
 import { buildChart, updateChart } from './charts.js';
 import { buildShareButtons } from './share.js';
+import { buildPlacementToggle } from './placement.js';
+import { clothingFor } from './clothing.js';
 
-// device_id -> { charts: {temp, humi, co2}, dataLen, total, last }
+// device_id -> { charts: {temp, humi, co2}, dataLen, total, last, placement }
 export const registry = new Map();
+
+// 設置場所と最新値から服装提案の 1 行を組み立てる。値が無ければ空文字。
+function clothingLineHtml(placement, last) {
+  const c = clothingFor(placement, last.temperature, last.humidity);
+  if (!c) return '';
+  const metric = c.kind === 'feels' ? `体感 ${c.value}°C` : `不快指数 ${c.value}`;
+  return `<span class="clothing-icon">👕</span><span class="clothing-advice">${c.advice}</span><span class="clothing-feeling">${c.feeling} ・ ${metric}</span>`;
+}
+
+// 服装提案の行を再描画する（設置場所の切替・新データ取得のたびに呼ぶ）。
+function renderClothing(device_id, placement, last) {
+  const el = document.getElementById(`clothing-${device_id}`);
+  if (!el) return;
+  const html = clothingLineHtml(placement, last);
+  el.innerHTML = html;
+  el.style.display = html ? '' : 'none';
+}
 
 // 表示中データの最新値（時刻＋各メトリクス）をまとめる。SNS 共有にも使う。
 // 値が一度も記録されていないメトリクスは null になる。
@@ -25,7 +44,7 @@ function flashCard(el) {
 
 // 初回表示。セクション DOM を作り、各グラフを生成して registry に登録する。
 export function initDevice(device, range) {
-  const { device_id, name, type, data, downsampled, total } = device;
+  const { device_id, name, type, placement, data, downsampled, total } = device;
   const { labels, times, series } = extractSeries(data, range);
 
   const last = latestValues(data);
@@ -51,6 +70,7 @@ export function initDevice(device, range) {
       <div>
         <div class="device-name">${name}${lastBattery != null ? ` <span class="battery-tag" id="battery-tag-${device_id}">🔋 ${lastBattery}%</span>` : ''}</div>
         <div class="device-type">device_id: ${device_id} &nbsp;|&nbsp; ${type || 'N/A'}${downsampled ? ' &nbsp;|&nbsp; <span class="downsample-tag">間引き表示</span>' : ''}</div>
+        <div class="clothing-line" id="clothing-${device_id}">${clothingLineHtml(placement, last)}</div>
       </div>
     </div>
     <div class="stats-row" id="stats-row-${device_id}">
@@ -62,12 +82,21 @@ export function initDevice(device, range) {
     </div>
   `;
 
+  // 設置場所トグル（室内 / 屋外）。切替時にサーバー保存し、服装提案を再計算する。
+  section.querySelector('.device-header').appendChild(
+    buildPlacementToggle(device_id, placement, (p) => {
+      const rec = registry.get(device_id);
+      if (rec) { rec.placement = p; renderClothing(device_id, p, rec.last); }
+    })
+  );
+
   // 共有ボタン（ヘッダー右端）。クリック時に registry から最新値を取り直す。
   section.querySelector('.device-header').appendChild(
     buildShareButtons(() => ({ name, ...registry.get(device_id).last }))
   );
 
   document.getElementById('dashboard').appendChild(section);
+  renderClothing(device_id, placement, last);   // 値が無いときは行を隠す
 
   const charts = {};
   for (const m of shown) {
@@ -77,7 +106,7 @@ export function initDevice(device, range) {
     );
   }
 
-  registry.set(device_id, { charts, dataLen: data.length, total, last });
+  registry.set(device_id, { charts, dataLen: data.length, total, last, placement });
 }
 
 // 既存セクションの値・グラフ・件数を更新する。新データ取得時はカードをフラッシュ。
@@ -121,6 +150,9 @@ export function updateDevice(device, range) {
   rec.dataLen = data.length;
   rec.total = total;
   rec.last = last;
+
+  // 現在値が変わったら服装提案も更新する（設置場所は現在のトグル状態を使う）。
+  renderClothing(device_id, rec.placement, last);
 }
 
 // 全デバイスのチャートを破棄して registry とダッシュボード DOM を空にする。
