@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const helmet = require('helmet');
 const fs = require('fs');
 const path = require('path');
 
@@ -10,6 +11,7 @@ const { isValidPlacement } = require('./lib/placement');
 const log = require('./lib/logger');
 
 const app = express();
+app.use(helmet());
 const PORT = process.env.PORT || 3000;
 
 // ダッシュボードが扱う有効なセンサー行だけに絞る共通フィルタ。
