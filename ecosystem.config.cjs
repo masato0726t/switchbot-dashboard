@@ -1,4 +1,4 @@
-// PM2 プロセス定義。`pm2 start ecosystem.config.js` で起動する。
+// PM2 プロセス定義。`pm2 start ecosystem.config.cjs` で起動する。
 // 環境変数は .env（dotenv）から読むため、ここでは PORT/NODE_ENV のみ最小限で指定する。
 module.exports = {
   apps: [

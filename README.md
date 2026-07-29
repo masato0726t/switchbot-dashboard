@@ -70,6 +70,7 @@ cp .env.example .env
 | `PORT`           | 任意      | `3000`    | 待ち受けポート。1 以上の整数              |
 | `TOTALS_TTL_MS`  | 任意      | `60000`   | 総件数キャッシュの有効期間（ミリ秒）。1 以上の整数 |
 | `LOG_LEVEL`      | 任意      | `info`    | `fatal` / `error` / `warn` / `info` / `debug` / `trace` のいずれか |
+| `NODE_ENV`       | 任意      | `development` | `development` / `production` / `test` のいずれか。**本番では `production` を明示すること**（後述「起動」節） |
 
 **不正な値（空文字・0・数値でない値・列挙外の文字列など）を設定すると、既定値に
 黙って倒れず起動時にエラーで停止します。** 設定ミスを黙殺すると「設定したはずなのに
@@ -78,10 +79,20 @@ cp .env.example .env
 
 ## 起動
 
+デプロイは `dist/` だけでは完結しません。`main.ts` は実行時に `public/`（静的配信）と
+`ddl/`（`device_settings.sql` の自動適用）をリポジトリルートからの相対パスで参照するため、
+**リポジトリ全体**（`dist/` に加えて `public/`・`ddl/`・`node_modules/` 一式）を配置してください。
+
 ```bash
-npm run build   # TypeScript をビルド（dist/ に出力）
-npm start       # dist/server/main.js を起動
+npm run build                    # TypeScript をビルド（dist/ に出力）
+NODE_ENV=production npm start    # dist/server/main.js を起動
 ```
+
+**本番では `NODE_ENV=production` を必ず指定してください。** 省略すると既定値の
+`development` になり、`createLogger` が `pino-pretty` の整形用ワーカースレッドを
+本番でも起動してしまいます（開発時に人が読みやすくするための機能で、本番では
+不要な上にプロセス負荷が増えます）。`pm2 start ecosystem.config.cjs` 経由の起動
+（`npm run pm2:start`）では `env.NODE_ENV` が自動的に `production` に設定されます。
 
 開発中は `npm run dev`（`tsx watch`）でビルド無しに再起動できます。
 
@@ -120,6 +131,7 @@ UI の「データ件数（表示 / 全）」カードでは、メインに `dat
     "device_id": 1,
     "name": "リビング",
     "type": "WoIOSensor",
+    "placement": "indoor",
     "total": 52431,
     "downsampled": false,
     "data": [
