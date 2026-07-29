@@ -94,6 +94,26 @@ NODE_ENV=production npm start    # dist/server/main.js を起動
 不要な上にプロセス負荷が増えます）。`pm2 start ecosystem.config.cjs` 経由の起動
 （`npm run pm2:start`）では `env.NODE_ENV` が自動的に `production` に設定されます。
 
+## 本番への反映
+
+サーバー上で `scripts/reload.sh` を実行します。
+
+```bash
+ssh <本番サーバー>
+cd ~/switchbot-dashboard && ./scripts/reload.sh
+```
+
+最新コードの取得 → 依存導入 → **ビルド** → PM2 反映 → 疎通確認 を順に行い、どこかで
+失敗すればそこで止まって理由とロールバック手順を出します。
+
+**ビルドを飛ばさないでください。** このアプリは TypeScript を `dist/` へ出力して実行
+するため、`git pull` と PM2 の再起動だけでは古いコードのまま動くか、`dist/` が無くて
+起動に失敗します。
+
+PM2 のプロセス定義（起動スクリプト・メモリ上限・`NODE_ENV`）は
+`ecosystem.config.cjs` が唯一の出典です。`pm2 start npm -- start` のように手動で
+起動すると、この設定が一切効かなくなるので避けてください。
+
 開発中は `npm run dev`（`tsx watch`）でビルド無しに再起動できます。
 
 ブラウザで `http://localhost:3000` を開いてください。
