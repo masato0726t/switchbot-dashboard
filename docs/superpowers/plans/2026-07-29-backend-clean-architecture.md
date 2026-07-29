@@ -3102,18 +3102,26 @@ dist/
 - [ ] **Step 6: .env.example に新しい変数を追記する**
 
 ```
+# 必須。1つでも欠けると起動時にエラーで停止する。
 DB_HOST=192.168.150.222
 DB_PORT=3306
 DB_USER=your_user
 DB_PASSWORD=your_password
 DB_NAME=switchbot_db
 
-# 任意（既定値あり）
-PORT=3000
-DB_POOL_LIMIT=10
-TOTALS_TTL_MS=60000
-LOG_LEVEL=info
+# 任意（既定値あり）。設定する場合は下記の制約を満たす必要がある。
+# 空文字・0・数値でない値を書くと、黙って既定値に倒れずに起動が失敗する。
+# 「設定したはずなのに効いていない」という気づきにくい障害を防ぐため。
+PORT=3000            # 1 以上の整数
+DB_POOL_LIMIT=10     # 1 以上の整数
+TOTALS_TTL_MS=60000  # 1 以上の整数（ミリ秒）
+LOG_LEVEL=info       # fatal / error / warn / info / debug / trace
 ```
+
+**この厳格さは旧実装からの意図的な変更である。** 旧 `server.cjs` / `lib/db.cjs` は
+`Number(process.env.X) || 既定値` の形で、`0` や空文字や不正値を黙って既定値に倒していた。
+新実装は起動時に変数名付きのエラーで停止する。あわせて `DB_PORT` は旧実装にフォールバックが
+無く未設定だと `NaN` が渡っていたが、新実装では 3306 が既定値になる。
 
 - [ ] **Step 7: eslint.config.js から旧 JS の設定を外し、層の境界チェックを有効にする**
 
@@ -3292,7 +3300,12 @@ npm start       # dist/server/main.js を起動
 開発中は `npm run dev`（`tsx watch`）でビルド無しに再起動できます。
 ```
 
-2. 「環境変数」の表に `PORT` / `DB_POOL_LIMIT` / `TOTALS_TTL_MS` / `LOG_LEVEL` を追加する
+2. 「環境変数」の表に `PORT` / `DB_POOL_LIMIT` / `TOTALS_TTL_MS` / `LOG_LEVEL` を追加し、
+   必須／任意の別と各変数の値の制約（正の整数、ログレベルの列挙）を書く。あわせて
+   **不正な値は既定値に倒れず起動時にエラーで停止する**ことと、その理由（設定ミスを
+   黙殺すると「設定したはずなのに効いていない」という気づきにくい障害になるため）を
+   1〜2行で明記する。旧実装は `Number(...) || 既定値` で黙って倒していたため、
+   これは意図的な挙動変更である
 3. 「テスト」節を Vitest と統合テストの説明に置き換える:
 
 ```markdown
