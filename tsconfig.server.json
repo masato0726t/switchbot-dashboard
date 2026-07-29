@@ -1,0 +1,18 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "sourceMap": true,
+    "declaration": false
+  },
+  "include": ["src/server", "src/shared"],
+  // *.test.ts に加え、テスト専用のヘルパー（本番コードから import されない）も
+  // dist/ に出さない。test-support.ts は @testcontainers/mysql（devDependency）を
+  // import しており、--omit=dev な本番インストールと dist/ の整合を保つため。
+  "exclude": [
+    "**/*.test.ts",
+    "src/server/infrastructure/db/create-test-db.ts",
+    "src/server/infrastructure/db/test-support.ts"
+  ]
+}

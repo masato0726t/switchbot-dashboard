@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "exactOptionalPropertyTypes": false,
+    "verbatimModuleSyntax": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    // src/shared/ranges.test.ts が public/js/config.js を直接 import して
+    // フロントエンドの表示ラベルとの一致を検証する（M7 対応）ためだけに必要。
+    // frontend（public/js/**）はこのプロジェクトの include 対象ではないため、
+    // 他の場所からの誤 import が増える心配はない。checkJs は付けないので
+    // config.js 自体の型チェックはしない（フロントエンド移行は別フェーズ）。
+    "allowJs": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src"]
+}

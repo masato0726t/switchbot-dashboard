@@ -18,7 +18,7 @@ export const METRICS = [
   { key: 'co2',  field: 'co2',         label: 'CO2',  unit: 'ppm', colorClass: 'co2-color',  palette: { line: '#a78bfa', fill: 'rgba(167,139,250,0.12)' } },
 ];
 
-// 表示範囲の選択肢（key・count・unit はサーバー側 RANGE_SPECS と対応）。
+// 表示範囲の選択肢（key・count・unit は src/shared/ranges.ts の RANGES と対応）。
 // count/unitJa はページング時の窓ラベル生成に使う。nav:false は遡れない（全期間）。
 export const RANGES = [
   { key: '1h',  label: '1時間',  count: 1,  unitJa: '時間', nav: true },
