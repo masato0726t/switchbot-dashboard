@@ -1,4 +1,11 @@
 -- 旧新の JSON 突き合わせ用のシード。ddl/ を適用したあとに実行する。
+
+-- mysql クライアントは接続文字セットを（サーバー既定や実行環境によっては）
+-- latin1 と解釈することがあり、その場合このファイルの UTF-8 バイト列を
+-- 再エンコードしてデータを壊してしまう。呼び出し側のフラグに頼らずこの
+-- ファイル単体で常に正しく動くよう、先頭で明示的に utf8mb4 を指定する。
+SET NAMES utf8mb4;
+
 INSERT INTO devices (id, device_name, device_type, is_virtual_infrared) VALUES
   (1, 'リビング', 'WoIOSensor',    0),
   (2, '書斎',     'MeterPro(CO2)', 0),

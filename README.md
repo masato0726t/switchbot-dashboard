@@ -222,7 +222,8 @@ switchbot-dashboard/
 │       ├── placement-toggle.js  # 設置場所トグル UI（室内/屋外の切替・保存）
 │       ├── charts.js         # Chart.js グラフの生成・更新
 │       ├── device.js         # デバイスセクションの描画・更新・破棄
-│       └── nav.js            # 範囲／ページ状態とナビ UI
+│       ├── nav.js            # 範囲／ページ状態とナビ UI
+│       └── share.js          # SNS 共有（投稿文の組み立て・Web Intent への連携）
 ├── src/
 │   ├── server/           # バックエンド（クリーンアーキテクチャ、詳細は上の節）
 │   │   ├── domain/          # 純粋ロジック（範囲解決・ダウンサンプリング・設置場所判定 等）
