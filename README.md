@@ -96,23 +96,28 @@ NODE_ENV=production npm start    # dist/server/main.js を起動
 
 ## 本番への反映
 
-サーバー上で `scripts/reload.sh` を実行します。
-
 ```bash
-ssh <本番サーバー>
-cd ~/switchbot-dashboard && ./scripts/reload.sh
+git pull
+npm ci                                    # 依存の追加・更新を取り込む
+npm run build                             # ← 飛ばさないこと
+pm2 startOrReload ecosystem.config.cjs --update-env
+pm2 save
 ```
-
-最新コードの取得 → 依存導入 → **ビルド** → PM2 反映 → 疎通確認 を順に行い、どこかで
-失敗すればそこで止まって理由とロールバック手順を出します。
 
 **ビルドを飛ばさないでください。** このアプリは TypeScript を `dist/` へ出力して実行
 するため、`git pull` と PM2 の再起動だけでは古いコードのまま動くか、`dist/` が無くて
 起動に失敗します。
 
+`npm ci` とビルドが終わるまで稼働中のプロセスには影響がないので、ここで失敗しても
+現行版が動き続けます。反映後は実際に応答することを確認してください。
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' 'http://localhost:3000/api/sensor-data?range=1h'
+```
+
 PM2 のプロセス定義（起動スクリプト・メモリ上限・`NODE_ENV`）は
 `ecosystem.config.cjs` が唯一の出典です。`pm2 start npm -- start` のように手動で
-起動すると、この設定が一切効かなくなるので避けてください。
+起動するとこの設定が一切効かなくなるため避けてください。
 
 開発中は `npm run dev`（`tsx watch`）でビルド無しに再起動できます。
 
