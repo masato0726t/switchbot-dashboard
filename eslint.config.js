@@ -1,4 +1,4 @@
-// ESLint v9 フラット設定。
+// ESLint v10 フラット設定。
 // TypeScript のバックエンドと、まだ素の ESM が残るフロントエンドが併存する。
 import js from '@eslint/js';
 import globals from 'globals';
