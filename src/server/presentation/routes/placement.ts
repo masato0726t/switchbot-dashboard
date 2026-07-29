@@ -2,7 +2,7 @@ import { Router } from 'express';
 import createHttpError from 'http-errors';
 import { z } from 'zod';
 import type { makeSetDevicePlacement } from '../../application/set-device-placement.js';
-import { PlacementUpdateRequestSchema } from '../../../shared/api-contract.js';
+import { PlacementUpdateRequestSchema, type PlacementUpdateResponse } from '../../../shared/api-contract.js';
 
 const ParamsSchema = z.object({ id: z.coerce.number().int() });
 
@@ -19,7 +19,11 @@ export function placementRouter(
     }
 
     await setDevicePlacement(params.data.id, body.data.placement);
-    res.json({ device_id: params.data.id, placement: body.data.placement });
+    // レスポンスの型を契約（PlacementUpdateResponseSchema から z.infer した型）に
+    // つなぎ、このエンドポイントの応答が契約の形から外れたらコンパイル時に
+    // 気付けるようにする。
+    const response: PlacementUpdateResponse = { device_id: params.data.id, placement: body.data.placement };
+    res.json(response);
   });
 
   return router;

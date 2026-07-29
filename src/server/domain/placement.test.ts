@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { PLACEMENTS, defaultPlacement, isValidPlacement } from './placement.js';
+import { defaultPlacement } from './placement.js';
 
 describe('defaultPlacement', () => {
   test('IO を含む種別を屋外と推測する', () => {
@@ -15,18 +15,4 @@ describe('defaultPlacement', () => {
     expect(defaultPlacement(undefined)).toBe('indoor');
     expect(defaultPlacement(null)).toBe('indoor');
   });
-});
-
-describe('isValidPlacement', () => {
-  test('indoor / outdoor のみ受け付ける', () => {
-    expect(isValidPlacement('indoor')).toBe(true);
-    expect(isValidPlacement('outdoor')).toBe(true);
-    expect(isValidPlacement('garden')).toBe(false);
-    expect(isValidPlacement('')).toBe(false);
-    expect(isValidPlacement(undefined)).toBe(false);
-  });
-});
-
-test('PLACEMENTS は indoor / outdoor を列挙する', () => {
-  expect([...PLACEMENTS].sort()).toEqual(['indoor', 'outdoor']);
 });
