@@ -11,11 +11,8 @@
 import { sql, type SelectQueryBuilder } from 'kysely';
 import { RANGE_BY_KEY, type IntervalUnit } from '../../../shared/ranges.js';
 import { resolveOffset, resolveRange } from '../../domain/range.js';
-import type { Database, DeviceStatusLogsTable } from './schema.js';
+import type { LogsDb } from './schema.js';
 
-// Kysely の TB 型引数は「DB のキー」しか受け付けないため、`selectFrom('device_status_logs as l')`
-// が実際に作る「エイリアス l を device_status_logs 行型として持つ DB」を型でも再現する。
-type LogsDb = Database & Record<'l', DeviceStatusLogsTable>;
 type LogsQuery<O> = SelectQueryBuilder<LogsDb, 'l', O>;
 
 const ago = (count: number, unit: IntervalUnit) =>

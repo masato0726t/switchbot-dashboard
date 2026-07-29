@@ -30,3 +30,8 @@ export interface Database {
   device_status_logs: DeviceStatusLogsTable;
   device_settings: DeviceSettingsTable;
 }
+
+// Kysely の TB 型引数は「DB のキー」しか受け付けないため、`selectFrom('device_status_logs as l')`
+// が実際に作る「エイリアス l を device_status_logs 行型として持つ DB」を型でも再現する。
+// filters.ts / window.ts / sensor-log.repository.ts の 3 箇所から使うのでここに置く。
+export type LogsDb = Database & Record<'l', DeviceStatusLogsTable>;
