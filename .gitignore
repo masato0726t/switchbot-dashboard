@@ -20,3 +20,9 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+
+# ビルド成果物
+dist/
+
+# 作業用のスクラッチ（実装の進捗台帳・レビュー用の差分など）
+.superpowers/
