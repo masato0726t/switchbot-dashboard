@@ -1,6 +1,6 @@
 import { sql } from 'kysely';
 import type { AcRuleInput } from '../../../shared/ac-contract.js';
-import { AIR_CONDITIONER_DEVICE_TYPE } from '../../../shared/air-conditioner.js';
+import { AIR_CONDITIONER_DEVICE_TYPES } from '../../../shared/air-conditioner.js';
 import type { AcRuleRepository } from '../../application/ports.js';
 import type {
   AcCommandLog,
@@ -335,7 +335,7 @@ export function createAcRuleRepository(db: Db): AcRuleRepository {
         .selectFrom('devices')
         .select(['id', 'device_name', 'device_type'])
         .where('is_virtual_infrared', '=', 1)
-        .where('device_type', '=', AIR_CONDITIONER_DEVICE_TYPE)
+        .where('device_type', 'in', [...AIR_CONDITIONER_DEVICE_TYPES])
         .orderBy('id')
         .execute();
 

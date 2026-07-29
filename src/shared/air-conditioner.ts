@@ -68,5 +68,11 @@ export const AC_LIMITS = {
   logLimitMax: 200,
 } as const;
 
-/** 制御対象として選べる赤外線デバイスの種別。 */
-export const AIR_CONDITIONER_DEVICE_TYPE = 'Air Conditioner';
+/**
+ * 制御対象として選べる赤外線デバイスの種別。
+ *
+ * SwitchBot API は赤外線リモコンの種別を remoteType で返す（deviceType ではない）。
+ * 学習リモコンとして自分で登録したものは "DIY Air Conditioner" になるため、
+ * 両方を候補に含める。
+ */
+export const AIR_CONDITIONER_DEVICE_TYPES = ['Air Conditioner', 'DIY Air Conditioner'] as const;
