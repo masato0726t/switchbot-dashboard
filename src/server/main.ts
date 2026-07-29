@@ -45,8 +45,21 @@ const app = createApp({
 
 // 設置場所テーブルの用意を待ってから listen する。先に listen すると、
 // テーブル作成完了前のリクエストで sensor-data の JOIN が失敗し得るため。
-await applySettingsDdl(db, join(ROOT, 'ddl'));
-logger.info('device_settings テーブルを確認');
+//
+// ここで例外を投げずに握りつぶすのは意図的。DB の一時的な不在（再起動中・
+// ネットワーク瞬断など）は自力で回復する種類の障害で、旧 server.cjs の
+// ensureSettingsTable() も同じ判断でログのみ出して listen を続行していた。
+// もしここで落とすと、PM2 は min_uptime 未満の再起動を「不安定」とみなし、
+// max_restarts に達した時点で再起動自体を諦めて errored のまま停止する。
+// 静的ファイルすら配信されなくなり、DB が復旧しても自動で戻らない全断に
+// なってしまう。listen だけは続行させ、DB を使う各エンドポイントは
+// 自分の try/catch で個別にクリーンな 500 を返す形に留める。
+try {
+  await applySettingsDdl(db, join(ROOT, 'ddl'));
+  logger.info('device_settings テーブルを確認');
+} catch (err) {
+  logger.error({ err }, 'device_settings テーブルの確認に失敗');
+}
 
 const server = app.listen(config.port, () => {
   logger.info(`SwitchBot ダッシュボード起動: http://localhost:${config.port} (pid ${process.pid})`);

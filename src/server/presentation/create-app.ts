@@ -13,7 +13,7 @@ export interface AppDeps {
   readonly getSensorData: ReturnType<typeof makeGetSensorData>;
   readonly setDevicePlacement: ReturnType<typeof makeSetDevicePlacement>;
   readonly logger: Logger;
-  /** ビルド済みフロントエンドの配置先 */
+  /** 静的ファイルの配信元ディレクトリ */
   readonly staticDir: string;
 }
 
