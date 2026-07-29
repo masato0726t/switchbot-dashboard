@@ -69,10 +69,20 @@ export const AC_LIMITS = {
 } as const;
 
 /**
- * 制御対象として選べる赤外線デバイスの種別。
+ * エアコンとして認識できる赤外線リモコンの種別。
  *
- * SwitchBot API は赤外線リモコンの種別を remoteType で返す（deviceType ではない）。
- * 学習リモコンとして自分で登録したものは "DIY Air Conditioner" になるため、
- * 両方を候補に含める。
+ * 学習リモコンとして自分で登録したものは "DIY Air Conditioner" になるため
+ * 両方を見る。
  */
-export const AIR_CONDITIONER_DEVICE_TYPES = ['Air Conditioner', 'DIY Air Conditioner'] as const;
+const AIR_CONDITIONER_DEVICE_TYPES = ['Air Conditioner', 'DIY Air Conditioner'];
+
+/**
+ * 種別からエアコンだと判断できるかを返す。
+ *
+ * 種別が空のこともある（収集ツールが古いと赤外線リモコンの種別を保存できない）。
+ * そのため候補の絞り込みには使わず、並び順と画面の注意書きにだけ使う。
+ * 制御対象として選べるかどうかは `is_virtual_infrared` で判断する。
+ */
+export function isAirConditionerType(type: string | null): boolean {
+  return type !== null && AIR_CONDITIONER_DEVICE_TYPES.includes(type);
+}

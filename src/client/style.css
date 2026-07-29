@@ -93,6 +93,7 @@ h2 { font-size: 1.15rem; margin: 0 0 0.75rem; }
 
 .empty { color: var(--muted); }
 .muted { color: var(--muted); }
+.warning-text { color: var(--warning-text); }
 
 .hint {
   display: block;

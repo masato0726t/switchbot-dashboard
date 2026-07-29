@@ -1,6 +1,6 @@
 import { sql } from 'kysely';
 import type { AcRuleInput } from '../../../shared/ac-contract.js';
-import { AIR_CONDITIONER_DEVICE_TYPES } from '../../../shared/air-conditioner.js';
+import { isAirConditionerType } from '../../../shared/air-conditioner.js';
 import type { AcRuleRepository } from '../../application/ports.js';
 import type {
   AcCommandLog,
@@ -331,13 +331,21 @@ export function createAcRuleRepository(db: Db): AcRuleRepository {
         deviceType: row.device_type,
       });
 
-      const airConditioners = await db
+      // 赤外線リモコンをすべて候補にする。種別（device_type）では絞らない。
+      // SwitchBot API は赤外線リモコンの種別を remoteType で返すため、収集ツールが
+      // 古いと device_type が空で保存され、種別で絞ると候補が 0 件になってしまう。
+      // エアコンかどうかは、種別が分かるものを先頭に並べて画面で示す。
+      const infraredDevices = await db
         .selectFrom('devices')
         .select(['id', 'device_name', 'device_type'])
         .where('is_virtual_infrared', '=', 1)
-        .where('device_type', 'in', [...AIR_CONDITIONER_DEVICE_TYPES])
         .orderBy('id')
         .execute();
+
+      const airConditioners = [...infraredDevices].sort((a, b) => {
+        const rank = (type: string | null) => (isAirConditionerType(type) ? 0 : 1);
+        return rank(a.device_type) - rank(b.device_type) || a.id - b.id;
+      });
 
       // 直近 24 時間に温度ログがあるデバイスだけを候補にする。過去に一度しか
       // 記録が無いデバイスを並べても選ぶ意味が無く、全期間の走査は重い。

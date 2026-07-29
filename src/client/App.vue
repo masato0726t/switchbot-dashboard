@@ -137,10 +137,8 @@ onMounted(async () => {
   <p v-else-if="message" class="banner" role="status">{{ message }}</p>
 
   <p v-if="loaded && !hasAirConditioner" class="banner error">
-    制御できるエアコンが見つかりません。SwitchBot アプリでエアコンを赤外線リモコンとして登録したうえで、
-    収集ツール（switchBotStore）を 1 回実行してください。
-    登録済みなのに出ない場合は、収集ツールが古くデバイス種別を保存できていない可能性があります
-    （<code>devices.device_type</code> が空になっていないか確認してください）。
+    赤外線リモコンが 1 つも登録されていません。SwitchBot アプリでエアコンをハブの赤外線リモコンとして
+    登録したうえで、収集ツール（switchBotStore）を 1 回実行してください。
   </p>
 
   <p v-if="loaded && rules.length === 0" class="empty">

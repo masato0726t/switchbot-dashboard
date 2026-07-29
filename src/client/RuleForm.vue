@@ -1,15 +1,11 @@
 <script setup lang="ts">
 // ルールの設定値を編集するフォーム。作成にも更新にも同じものを使う。
-import { AC_LIMITS } from '../shared/air-conditioner.js';
+import { computed } from 'vue';
+import { AC_LIMITS, isAirConditionerType } from '../shared/air-conditioner.js';
 import type { AcDeviceOptionDto, AcRuleInput } from '../shared/ac-contract.js';
 import ScheduleEditor from './ScheduleEditor.vue';
 
 const input = defineModel<AcRuleInput>({ required: true });
-
-defineProps<{
-  airConditioners: AcDeviceOptionDto[];
-  sensors: AcDeviceOptionDto[];
-}>();
 
 function patch(changes: Partial<AcRuleInput>) {
   input.value = { ...input.value, ...changes };
@@ -26,7 +22,26 @@ function onNullableNumber(key: 'default_humidity_max' | 'default_humidity_min', 
   patch({ [key]: raw === '' ? null : Number(raw) });
 }
 
-const deviceLabel = (device: AcDeviceOptionDto) => device.device_name ?? `(名前なし #${device.id})`;
+const props = defineProps<{
+  airConditioners: AcDeviceOptionDto[];
+  sensors: AcDeviceOptionDto[];
+}>();
+
+// 候補は赤外線リモコン全部（照明なども混ざる）。種別が分かるものは併記して選びやすくする。
+const deviceLabel = (device: AcDeviceOptionDto) => {
+  const name = device.device_name ?? `(名前なし #${device.id})`;
+  return device.device_type ? `${name}（${device.device_type}）` : name;
+};
+
+// 種別が 1 つも分からないときだけ、名前で選ぶしかない旨を案内する。
+const typesUnknown = computed(() =>
+  props.airConditioners.length > 0 && props.airConditioners.every((d) => !d.device_type),
+);
+
+const selectedIsAirConditioner = computed(() => {
+  const selected = props.airConditioners.find((d) => d.id === input.value.ac_device_id);
+  return selected === undefined || !selected.device_type || isAirConditionerType(selected.device_type);
+});
 </script>
 
 <template>
@@ -43,6 +58,12 @@ const deviceLabel = (device: AcDeviceOptionDto) => device.device_name ?? `(名�
           {{ deviceLabel(device) }}
         </option>
       </select>
+      <span v-if="typesUnknown" class="hint">
+        ハブに登録された赤外線リモコンをすべて表示しています。エアコンのものを名前で選んでください。
+      </span>
+      <span v-else-if="!selectedIsAirConditioner" class="hint warning-text">
+        選んだリモコンはエアコンとして登録されていません。冷暖房の指示は届きません。
+      </span>
     </label>
 
     <label>
