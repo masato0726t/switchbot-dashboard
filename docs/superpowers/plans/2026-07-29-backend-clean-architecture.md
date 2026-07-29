@@ -14,6 +14,7 @@
 
 - Node.js `>=20`（`package.json` の `engines` を維持）。CI は Node 20.x / 22.x のマトリクス
 - **package.json に `"type": "module"` を追加する。以降このリポジトリの `.js` / `.ts` はすべて ESM**
+- **旧 CommonJS 実装（`server.js` / `lib/*.js` / `test/*.test.js`）は Task 1 で `.cjs` へリネームする。** Task 12 の「旧新のレスポンス突き合わせ」まで旧実装を起動可能に保つ必要があるため。これらは Task 12 で削除される
 - **ESM + `moduleResolution: NodeNext` のため、TypeScript ソース内の相対 import には拡張子 `.js` を必ず付ける**（例: `import { lttb } from './downsample.js'`）。TS ファイルを指していても `.js` と書くのが NodeNext の規約
 - TypeScript は `strict: true`。`any` の明示的な使用は禁止（`unknown` + 絞り込みを使う）
 - **`GET /api/sensor-data` と `PUT /api/devices/:id/placement` のレスポンス JSON は現行と完全に同一**。キーの並び順まで維持する（旧新の突き合わせ検証を成立させるため）
@@ -56,7 +57,7 @@
 | `src/server/config.ts` | 環境変数の zod 検証 |
 | `src/server/main.ts` | 合成ルート・起動・graceful shutdown |
 
-**削除するファイル（Task 12）:** `server.js`, `lib/db.js`, `lib/downsample.js`, `lib/logger.js`, `lib/placement.js`, `lib/ranges.js`, `lib/transform.js`, `test/` 配下の 4 ファイル（`ranges` / `transform` / `placement` / `downsample`）
+**削除するファイル（Task 12）:** `server.cjs`, `lib/db.cjs`, `lib/downsample.cjs`, `lib/logger.cjs`, `lib/placement.cjs`, `lib/ranges.cjs`, `lib/transform.cjs`, `test/` 配下の 4 ファイル（`ranges.test.cjs` / `transform.test.cjs` / `placement.test.cjs` / `downsample.test.cjs`）。いずれも Task 1 で `.cjs` へリネーム済み
 
 ---
 
@@ -68,6 +69,7 @@ TypeScript・Vitest・ESLint(TS) を導入し、最初の TS モジュールと�
 - Modify: `package.json`
 - Modify: `eslint.config.js`（CommonJS → ESM へ変換）
 - Rename: `ecosystem.config.js` → `ecosystem.config.cjs`
+- Rename: `server.js` → `server.cjs`、`lib/*.js`（6 ファイル）→ `lib/*.cjs`、`test/{ranges,transform,placement,downsample}.test.js` → `*.test.cjs`
 - Create: `tsconfig.json`, `tsconfig.server.json`, `vitest.config.ts`
 - Create: `src/shared/ranges.ts`
 - Test: `src/shared/ranges.test.ts`
@@ -90,14 +92,45 @@ TypeScript・Vitest・ESLint(TS) を導入し、最初の TS モジュールと�
 npm install --save-dev typescript@^5 vitest@^3 @types/node@^22 typescript-eslint@^8 eslint-plugin-boundaries@^5
 ```
 
-- [ ] **Step 2: package.json を ESM 化しスクリプトを整える**
+- [ ] **Step 2: 旧 CommonJS 実装を .cjs へリネームする**
+
+`"type": "module"` を入れると Node は `.js` を ESM として扱う。旧実装は Task 12 の
+「旧新のレスポンス突き合わせ」まで起動可能に保つ必要があるので、`.cjs` へ逃がす。
+これらのファイルは Task 12 で削除されるため、この改名は一時的なもの。
+
+```bash
+git mv server.js server.cjs
+for f in db downsample logger placement ranges transform; do git mv "lib/$f.js" "lib/$f.cjs"; done
+for f in ranges transform placement downsample; do git mv "test/$f.test.js" "test/$f.test.cjs"; done
+```
+
+Node の CommonJS 解決は拡張子なしの `require` で `.cjs` を探さないため、
+ローカル `require` に拡張子を明記する。書き換える箇所は次の 11 箇所だけ。
+
+- `server.cjs`: `require('./lib/db')` → `require('./lib/db.cjs')`。同様に
+  `./lib/ranges` / `./lib/transform` / `./lib/placement` / `./lib/logger` の 5 箇所
+- `lib/transform.cjs`: `require('./downsample')` → `require('./downsample.cjs')`、
+  `require('./placement')` → `require('./placement.cjs')` の 2 箇所
+- `test/ranges.test.cjs`: `require('../lib/ranges')` → `require('../lib/ranges.cjs')`
+- `test/transform.test.cjs`: `require('../lib/transform')` → `require('../lib/transform.cjs')`
+- `test/placement.test.cjs`: `require('../lib/placement')` → `require('../lib/placement.cjs')`
+- `test/downsample.test.cjs`: `require('../lib/downsample')` → `require('../lib/downsample.cjs')`
+
+`test/*.mjs` と `public/js/*.js` は元から ESM なので変更しない。
+
+この時点で旧実装が動くことを確認する。
+
+Run: `node --test`
+Expected: 55 ケース PASS（`.cjs` と `.mjs` の両方が実行される）
+
+- [ ] **Step 3: package.json を ESM 化しスクリプトを整える**
 
 `package.json` の `"description"` の直後に `"type": "module",` を追加し、`scripts` を次で置き換える。
 
 ```json
   "type": "module",
   "scripts": {
-    "start": "node server.js",
+    "start": "node server.cjs",
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.server.json --noEmit",
     "test": "vitest run",
@@ -115,7 +148,7 @@ npm install --save-dev typescript@^5 vitest@^3 @types/node@^22 typescript-eslint
 git mv ecosystem.config.js ecosystem.config.cjs
 ```
 
-- [ ] **Step 3: tsconfig を作る**
+- [ ] **Step 4: tsconfig を作る**
 
 `tsconfig.json`（共通の厳格設定。エディタが参照する）:
 
@@ -155,7 +188,7 @@ git mv ecosystem.config.js ecosystem.config.cjs
 }
 ```
 
-- [ ] **Step 4: vitest.config.ts を作る**
+- [ ] **Step 5: vitest.config.ts を作る**
 
 ```ts
 import { defineConfig } from 'vitest/config';
@@ -170,14 +203,14 @@ export default defineConfig({
 });
 ```
 
-- [ ] **Step 5: eslint.config.js を ESM へ変換する**
+- [ ] **Step 6: eslint.config.js を ESM へ変換する**
 
 `eslint.config.js` の全体を次で置き換える。この時点では既存 JS の設定を保ったまま、TypeScript 用のブロックを足す（層の境界チェックは Task 12 で有効化する）。
 
 ```js
 // ESLint v9 フラット設定。
-// 移行期のため、旧 JS（CommonJS の server.js / lib、ブラウザ ESM の public/js）と
-// 新しい TypeScript（src/）の設定が併存する。旧 JS 側は Task 12 で削除される。
+// 移行期のため、旧実装（CommonJS の server.cjs / lib、ブラウザ ESM の public/js）と
+// 新しい TypeScript（src/）の設定が併存する。旧実装は Task 12 で削除される。
 import js from '@eslint/js';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
@@ -189,7 +222,7 @@ export default [
 
   // 旧 backend：CommonJS・Node グローバル
   {
-    files: ['server.js', 'lib/**/*.js'],
+    files: ['server.cjs', 'lib/**/*.cjs', 'ecosystem.config.cjs'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'commonjs',
@@ -207,11 +240,22 @@ export default [
     },
   },
 
-  // 旧 test：ESM / CommonJS 混在・Node グローバル
+  // 旧 test（CommonJS）
   {
-    files: ['test/**/*.{js,mjs}'],
+    files: ['test/**/*.cjs'],
     languageOptions: {
       ecmaVersion: 2022,
+      sourceType: 'commonjs',
+      globals: { ...globals.node },
+    },
+  },
+
+  // 旧 test（ESM。public/js の純粋ヘルパーを検証する）
+  {
+    files: ['test/**/*.mjs'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'module',
       globals: { ...globals.node },
     },
   },
@@ -242,7 +286,7 @@ export default [
 ];
 ```
 
-- [ ] **Step 6: 失敗するテストを書く**
+- [ ] **Step 7: 失敗するテストを書く**
 
 `src/shared/ranges.test.ts`:
 
@@ -310,12 +354,12 @@ describe('RANGES', () => {
 });
 ```
 
-- [ ] **Step 7: テストを実行して失敗を確認する**
+- [ ] **Step 8: テストを実行して失敗を確認する**
 
 Run: `npm test`
 Expected: FAIL — `Failed to resolve import "./ranges.js"`
 
-- [ ] **Step 8: 実装する**
+- [ ] **Step 9: 実装する**
 
 `src/shared/ranges.ts`:
 
@@ -368,23 +412,24 @@ export const RANGE_BY_KEY: Readonly<Record<RangeKey, RangeSpec>> =
 export const DEFAULT_RANGE: RangeKey = '24h';
 ```
 
-- [ ] **Step 9: テストと lint と typecheck を通す**
+- [ ] **Step 10: テストと lint と typecheck を通す**
 
 Run: `npm test && npm run lint && npm run typecheck`
-Expected: すべて PASS（既存の `npm run test` 相当だった `node --test` の 51 ケースはまだ `test/` にあり、Vitest の対象外。Task 2 以降で順次移植する）
+Expected: すべて PASS（旧テストはまだ `test/` にあり Vitest の対象外。Task 2 以降で順次移植する）
 
-旧テストがまだ動くことも確認する。
+旧実装と旧テストがまだ動くことも確認する。
 Run: `node --test`
-Expected: 51 ケース PASS
+Expected: 55 ケース PASS
 
-- [ ] **Step 10: コミット**
+- [ ] **Step 11: コミット**
 
 ```bash
 git add -A
 git commit -m "TypeScript・Vitest・ESLint(TS) の基盤を整備し表示範囲の定義を一本化
 
 package.json を ESM 化し、tsconfig・vitest 設定・TS 用 lint 設定を追加する。
-最初の TS モジュールとして src/shared/ranges.ts を置き、lib/ranges.js と
+旧 CommonJS 実装は Task 12 の突き合わせ検証まで起動可能に保つため .cjs へ逃がす。
+最初の TS モジュールとして src/shared/ranges.ts を置き、lib/ranges.cjs と
 public/js/config.js に二重定義されていた範囲リストを 1 箇所に統合する。"
 ```
 
@@ -1223,9 +1268,11 @@ DTO はキーの並び順まで現行実装に合わせ、移行前後の JSON �
 - [ ] **Step 1: 依存を追加する**
 
 ```bash
-npm install pino pino-http
-npm install --save-dev pino-pretty
+npm install pino pino-http pino-pretty
 ```
+
+`pino-pretty` は本番以外で実行時に読み込まれる（`NODE_ENV` が未設定なら本番扱いに
+ならない）ため、devDependencies ではなく dependencies に入れる。
 
 - [ ] **Step 2: 失敗するテストを書く**
 
@@ -2884,8 +2931,8 @@ ddl/ の 3 ファイルをそのまま適用した MySQL 8 に対して、時間
 新しい実装へ切り替え、旧ファイルを削除し、層の境界チェックを有効化する。
 
 **Files:**
-- Delete: `server.js`, `lib/db.js`, `lib/downsample.js`, `lib/logger.js`, `lib/placement.js`, `lib/ranges.js`, `lib/transform.js`
-- Delete: `test/ranges.test.js`, `test/transform.test.js`, `test/placement.test.js`, `test/downsample.test.js`
+- Delete: `server.cjs`, `lib/db.cjs`, `lib/downsample.cjs`, `lib/logger.cjs`, `lib/placement.cjs`, `lib/ranges.cjs`, `lib/transform.cjs`
+- Delete: `test/ranges.test.cjs`, `test/transform.test.cjs`, `test/placement.test.cjs`, `test/downsample.test.cjs`
 - Create: `scripts/seed-verify.sql`（旧新の突き合わせ用シード。移行後もスキーマ変更時の手動確認に使う）
 - Modify: `package.json`, `eslint.config.js`, `ecosystem.config.cjs`, `.gitignore`, `.env.example`, `.github/workflows/ci.yml`, `README.md`
 
@@ -2955,9 +3002,9 @@ for f in ddl/devices.sql ddl/device_status_logs.sql ddl/device_settings.sql scri
   docker exec -i switchbot-verify mysql -udash -pdash switchbot_db < "$f"
 done
 
-# 3) 旧実装で取得
+# 3) 旧実装で取得（Task 1 で .cjs へリネーム済み）
 DB_HOST=127.0.0.1 DB_PORT=13306 DB_USER=dash DB_PASSWORD=dash DB_NAME=switchbot_db \
-  PORT=3001 node server.js &
+  PORT=3001 node server.cjs &
 sleep 2
 for r in 1h 24h 1w all; do
   curl -s "http://localhost:3001/api/sensor-data?range=$r&offset=0" > "/tmp/old-$r.json"
@@ -3005,9 +3052,12 @@ docker rm -f switchbot-verify
 - [ ] **Step 2: 旧ファイルを削除する**
 
 ```bash
-git rm server.js lib/db.js lib/downsample.js lib/logger.js lib/placement.js lib/ranges.js lib/transform.js
-git rm test/ranges.test.js test/transform.test.js test/placement.test.js test/downsample.test.js
+git rm server.cjs lib/db.cjs lib/downsample.cjs lib/logger.cjs lib/placement.cjs lib/ranges.cjs lib/transform.cjs
+git rm test/ranges.test.cjs test/transform.test.cjs test/placement.test.cjs test/downsample.test.cjs
 ```
+
+`lib/` ディレクトリは空になるので消える。`test/` には `clothing.test.mjs` /
+`format.test.mjs` / `share.test.mjs` が残る（フロントエンドのフェーズで移植する）。
 
 - [ ] **Step 3: package.json を更新する**
 
@@ -3280,7 +3330,7 @@ Expected: `http://localhost:3000` でダッシュボードが表示され、範�
 git add -A
 git commit -m "旧バックエンド実装を削除し TypeScript 実装へ切り替える
 
-server.js と lib/ を削除し、npm start を dist/server/main.js に向ける。
+server.cjs と lib/ を削除し、npm start を dist/server/main.js に向ける。
 ESLint に層の境界チェックを追加し、依存の向きの違反をエラーにする。
 CI に typecheck / integration / build のジョブを足す。"
 ```
