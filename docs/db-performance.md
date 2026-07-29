@@ -5,126 +5,118 @@ Web 画面（`GET /api/sensor-data`）の表示が遅い場合の DB 側チュ�
 入っているため、ここでは DB の索引を扱う。
 
 **結論を先に書く。** `recorded_at` の単独索引を追加すると表示窓クエリが劇的に速く
-なる（実測 182 倍）。一方、以前このドキュメントが推奨していた複合索引
-`(device_id, recorded_at)` は表示窓クエリに効かないうえ、総件数クエリを 15 倍以上
-遅くしていたため削除を推奨する。実行する SQL は
-`scripts/optimize-device-status-logs-index.sql` にある。
+なる（検証環境で 182 倍）。実行する SQL は
+`scripts/optimize-device-status-logs-index.sql`。一方、以前このドキュメントが推奨して
+いた複合索引 `(device_id, recorded_at)` は表示窓クエリに効かず、総件数クエリをむしろ
+遅くしているが、**外部キーの裏付け索引なので削除できず、代替索引に置き換えても改善
+しない**（実測済み）。
 
-## 背景
-
-`device_status_logs` は収集側が管理するテーブルで、初期スキーマは主キーしか
-索引を持たない。
-
-```sql
-CREATE TABLE device_status_logs (
-  id INT PRIMARY KEY AUTO_INCREMENT,
-  device_id INT,
-  status_data JSON,
-  recorded_at DATETIME
-);
-```
-
-ダッシュボードが発行するクエリは 2 種類ある。
+## ダッシュボードが発行する 2 つのクエリ
 
 | | クエリ | 実行頻度 |
 |---|---|---|
 | **A. 表示窓** | `recorded_at` で範囲を絞り、`device_id, recorded_at` で並べ替える | 画面更新ごと（既定 30 秒） |
 | **B. 総件数** | 時間窓を持たず `device_id` ごとに全期間の件数を数える | TTL キャッシュ（既定 60 秒）越し |
 
-索引が無いと A は毎リクエストで全行フルスキャン + filesort になり、行数に比例して
-遅くなる。
-
-> このテーブルは「収集側管理・参照のみ」のため、ダッシュボード起動時の
-> 自動 DDL（`ddl/device_settings.sql`）には**含めない**。索引の変更は
-> 収集側の運用者と合意のうえで手動実行する。
+> `device_status_logs` は収集側が管理するテーブルのため、ダッシュボード起動時の
+> 自動 DDL（`ddl/device_settings.sql`）には**含めない**。索引の変更は収集側の
+> 運用者と合意のうえで手動実行する。
 
 ## 実測
 
-MySQL 8.0 / 約 209 万行 / 4 デバイス。バッファプールをウォームアップ後に 3 回計測した
-代表値。
+### 本番環境（約 117,000 行 / MySQL 8.4）
+
+`idx_recorded_at` 適用後の実測値。
+
+| クエリ | 実行計画 | 時間 |
+|---|---|---|
+| A. 表示窓(24h) | `type: range` / `key: idx_recorded_at` | **56 ms**（2,886 行） |
+| B. 総件数 | `type: index` / `key: idx_device_recorded` | **471 ms** |
+
+この規模では B の 471 ms は実害にならない（60 秒 TTL キャッシュ越しのため）。
+
+### 検証環境（約 209 万行 / MySQL 8.0 / Docker）
+
+索引構成を変えて比較したもの。本番の 18 倍の規模で、将来の姿に相当する。
 
 | 索引構成 | A: 表示窓(24h) | B: 総件数 |
 |---|---|---|
-| 主キーのみ（初期状態） | 2.365 s | 3.2 s |
-| `idx_device_recorded (device_id, recorded_at)` のみ | 2.365 s | **50.2 s** |
-| **`idx_recorded_at (recorded_at)` のみ（推奨）** | **0.013 s** | **3.0 s** |
+| 主キーのみ | 2.365 s | 3.2 s |
+| `idx_device_recorded` のみ | 2.365 s | 51.1 s |
+| `idx_device_recorded` + `idx_recorded_at` ← **本番の現構成** | **0.013 s** | 50.2 s |
+| `idx_device_id` + `idx_recorded_at`（複合索引を置換） | 0.018 s | 50.0 s |
+| `idx_recorded_at` のみ（外部キーが無い場合） | 0.013 s | 3.0 s |
 
 表示窓クエリのスキャン行数は 2,083,820 行 → 480 行になる。
 
-### なぜ複合索引は効かなかったのか
+## なぜ複合索引は A に効かず、B を遅くするのか
 
-**A（表示窓）に効かない理由** — WHERE 句に `device_id` の等値条件が無い。複合索引は
-先頭列が絞り込まれないとレンジスキャンに使えないため、`recorded_at` の範囲条件だけでは
-利用できない。オプティマイザは `type: ALL` のフルスキャン + filesort を選ぶ。
+**A に効かない理由** — WHERE 句に `device_id` の等値条件が無い。複合索引は先頭列が
+絞り込まれないとレンジスキャンに使えないため、`recorded_at` の範囲条件だけでは利用
+できない。オプティマイザは `type: ALL` のフルスキャン + filesort を選ぶ。
 
-**B（総件数）を遅くしていた理由** — `GROUP BY device_id` に対して複合索引が並び順を
-提供するため、オプティマイザは索引フルスキャン（`type: index`）を選ぶ。ところが WHERE 句が
-必要とする `status_data` は索引に含まれていないので、索引エントリ 209 万件すべてで主キーへの
-ランダムアクセスが発生する。テーブルを順次スキャンする方が圧倒的に速い。
+**B を遅くする理由** — `GROUP BY device_id` に対して複合索引が並び順を提供するため、
+オプティマイザは索引フルスキャン（`type: index`）を選ぶ。ところが WHERE 句が必要と
+する `status_data` は索引に含まれていないので、索引エントリ全件で主キーへのランダム
+アクセスが発生する。テーブルを順次スキャンする方が圧倒的に速い。
 
 これは「索引を足せば速くなる」が成り立たない典型例で、**カバーしていない列を参照する
 クエリでは索引フルスキャンが全表スキャンより遅くなりうる**という InnoDB の性質による。
 
-### JSON フィルタについて
+## 複合索引を削除できない理由
 
-センサー行フィルタ `JSON_LENGTH(status_data) > 0 AND JSON_EXTRACT(...) IS NOT NULL` は
-sargable でないため、どんな索引でも絞り込めない。ただし A では `recorded_at` の範囲で
-候補行が数百件まで減ったあとに評価されるので、実質的な負荷にはならない。B では全行に
-対して評価されるが、順次スキャンなので 3 秒程度で完了する（かつ TTL キャッシュ越し）。
+`device_status_logs` には外部キー `device_status_logs_ibfk_1 (device_id) → devices(id)`
+がある。MySQL は外部キーの子側カラムに索引を要求するため、`idx_device_recorded` を
+そのまま削除しようとすると拒否される。
 
-## 手順
-
-`scripts/optimize-device-status-logs-index.sql` をそのまま実行する。
-
-```bash
-mysql -h <DB_HOST> -P <DB_PORT> -u <DB_USER> -p <DB_NAME> \
-  < scripts/optimize-device-status-logs-index.sql
+```
+ERROR 1553 (HY000): Cannot drop index 'idx_device_recorded': needed in a foreign key constraint
 ```
 
-このスクリプトは次を行う。
+回避策として `(device_id)` 単独索引を先に足してから複合索引を落とすことはできるが、
+**上の表のとおり B の時間はほぼ変わらない**（51.1 s → 50.0 s）。オプティマイザは単独
+索引でも同じ実行計画を選ぶため、労力に見合う効果が無い。
 
-1. **`idx_recorded_at (recorded_at)` を追加**（必須）。`ALGORITHM=INPLACE, LOCK=NONE`
-   なので実行中も読み書きをブロックしない
-2. **`idx_device_recorded` の削除**（推奨・既定ではコメントアウト）。下記の確認を
-   済ませてからコメントを外す
-3. 索引一覧と両クエリの実行計画を表示して結果を確認
+外部キーを外せば B は 3.0 秒まで速くなるが、参照整合性を捨てる判断になるため推奨
+しない。
 
-### 手順 2 を実行する前に確認すること
+## B が問題になったときの選択肢
 
-`idx_device_recorded` はダッシュボードのどのクエリも利用しておらず、総件数クエリを
-遅くしているだけなので、ダッシュボードの観点では削除が正しい。
+現状（本番 117,000 行で 471 ms）では対処不要。テーブルが大きくなって実害が出た場合の
+選択肢を、副作用の小さい順に挙げる。
 
-ただしこのテーブルは収集側が管理している。収集側のプログラムが「特定デバイスの直近
-データを引く」ような `device_id` の等値条件を持つクエリを発行している場合、この索引は
-そちらで有効に働いている可能性がある。**収集側のクエリを確認できない場合は手順 2 を
-実行せず、手順 1 だけを適用してもよい。** その場合でも表示窓クエリは 182 倍速くなる。
+1. **`TOTALS_TTL_MS` を延ばす。** 環境変数だけで済む。総件数は「全データ件数」の表示に
+   しか使われないので、更新が数分遅れても実用上の支障は小さい。
+2. **アプリ側で `IGNORE INDEX FOR GROUP BY (idx_device_recorded)` を付ける。**
+   209 万行で 51.1 s → 2.83 s（18 倍）を確認済みで、結果も一致する。ただしアプリの
+   コードが索引名に依存することになり、索引名が変わると MySQL がエラーを返して
+   エンドポイントが落ちる。収集側と索引名の取り決めが必要。
+3. **生成列 + カバリング索引。** `JSON_EXTRACT` の結果を STORED 生成列にして
+   `(device_id, その列)` に索引を張れば B もカバーできる。最も効果が大きいが、収集側の
+   テーブルに列を足す変更になる。
 
-### 期待される実行計画
+## 期待される実行計画
 
 ```
 -- A: 表示窓クエリ
-type: range | key: idx_recorded_at | rows: 数百 | Extra: Using index condition; Using where; Using filesort
+type: range | key: idx_recorded_at | rows: 数百〜数千 | Extra: Using index condition; Using where; Using filesort
 
--- B: 総件数クエリ（手順 2 実行後）
-type: ALL | key: NULL | Extra: Using where; Using temporary
+-- B: 総件数クエリ
+type: index | key: idx_device_recorded | Extra: Using where
 ```
 
-A の `Using filesort` は残るが、対象が数百行なので無視できる。B が `type: ALL` に
-なるのは**正しい状態**で、全行を数える以上フルスキャンが最速である。
-
-## 書き込み側への影響
-
-`recorded_at` は単調増加するので、追加する索引は常に B ツリーの右端に追記され、挿入
-コストはほぼ増えない。手順 2 まで実行すると索引が 1 つ減るため、収集側の INSERT は
-現状より軽くなる。
+A の `Using filesort` は残るが、対象が窓に入る行だけなので無視できる。
 
 ## 関連するテスト
 
 `src/server/infrastructure/db/repositories.integration.test.ts` が Testcontainers で
-実 MySQL を起動し、索引がスキーマに存在することと表示窓クエリが `EXPLAIN` 可能である
-ことを検証する。実行計画そのもの（`type` / `key`）は固定していない。将来この
-ドキュメントの手順で索引構成を改善したときにテストが落ちるのを避けるためで、実測値の
-記録はこのドキュメントが担う。
+実 MySQL を起動し、`ddl/` をそのまま適用したうえで A が `idx_recorded_at` を
+レンジスキャンすることを検証する。外部キーの有無は実行計画の選択に影響するため、
+テストは簡略化したスキーマではなく本番と同じ `ddl/` を使う。
+
+大量挿入の直後は InnoDB の永続統計が古く、オプティマイザがフルスキャンを選んで
+しまうため、テストは計測前に `ANALYZE TABLE` を実行して本番の統計が蓄積された状態を
+再現している。
 
 ## 関連する環境変数
 

@@ -1,5 +1,6 @@
-// 統合テスト用の MySQL コンテナ。ddl/ の 3 ファイルをそのまま適用するので、
-// 本番と同じスキーマ（索引を含む）に対して検証できる。
+// 統合テスト用の MySQL コンテナ。ddl/ をそのまま適用するので、本番と同じスキーマ
+// （索引・外部キーを含む）に対して検証できる。外部キーの有無は実行計画の選択に
+// 影響するため、簡略化したスキーマで代用しない。
 
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -40,15 +41,25 @@ export async function startMysql(): Promise<TestMysql> {
     poolLimit: 5,
   });
 
-  for (const file of ['devices.sql', 'device_status_logs.sql', 'device_settings.sql']) {
+  // 外部キーの依存順に適用する（api_accounts → devices → device_status_logs）。
+  for (const file of ['api_accounts.sql', 'devices.sql', 'device_status_logs.sql', 'device_settings.sql']) {
     await sql.raw(await readFile(`${DDL_DIR}${file}`, 'utf8')).execute(db);
   }
+
+  // devices.api_account_id は NOT NULL かつ外部キーなので、デバイスを入れる前に
+  // 親行が要る。認証情報の列にはダミー値だけを入れる。
+  await sql`INSERT INTO api_accounts (id, name, token, secret)
+            VALUES (1, 'test', 'dummy-token', 'dummy-secret')`.execute(db);
 
   return {
     db,
     async seedDevices(devices) {
       await db.insertInto('devices').values(devices.map((d) => ({
         id: d.id,
+        // 収集側が必須にしている列。ダッシュボードは参照しないので値は何でもよいが、
+        // uq_account_device (api_account_id, device_id) が UNIQUE なので重複させない。
+        api_account_id: 1,
+        device_id: `dummy-${d.id}`,
         device_name: d.name,
         device_type: d.type,
         is_virtual_infrared: d.virtual ? 1 : 0,
@@ -62,8 +73,10 @@ export async function startMysql(): Promise<TestMysql> {
       }))).execute();
     },
     async truncate() {
+      // 外部キーがあるので TRUNCATE は使えない（子行が無くても拒否される）。
+      // 子 → 親の順に DELETE し、AUTO_INCREMENT は使わないので採番は戻さない。
       for (const table of ['device_status_logs', 'device_settings', 'devices'] as const) {
-        await sql.raw(`TRUNCATE TABLE ${table}`).execute(db);
+        await sql.raw(`DELETE FROM ${table}`).execute(db);
       }
     },
     async stop() {
