@@ -20,6 +20,14 @@ const numberOrNull = (value: unknown): number | null =>
  * mysql2 は JSON 列をパース済みで返すが、ドライバ設定や列型の違いで
  * 文字列のまま来る場合もあるため両方を受ける。
  * 収集側が決める JSON なので、想定外の形は「値なし」として扱い落とさない。
+ *
+ * battery / co2 は「数値のときだけキーを含める」で判定しており、これは
+ * 旧 lib/transform.cjs からの意図的な変更点。旧実装は「キーが !== undefined
+ * なら含める」で判定していたため、例えば status_data.battery === null の
+ * ときも `"battery": null` を出力していた。新実装ではこの場合キーごと省く
+ * （下のテスト「CO2 / battery が無ければキー自体を付けない」参照）。この方が
+ * shared/api-contract.ts（battery / co2 は optional な number で nullable では
+ * ない）と整合するため、こちらを正とした。
  */
 export function parseStatusData(raw: unknown): StatusValues {
   const source = typeof raw === 'string' ? tryParseJson(raw) : raw;

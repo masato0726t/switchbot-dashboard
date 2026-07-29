@@ -126,7 +126,7 @@ describe('SensorLogRepository', () => {
     expect(totals.get(2)).toBe(1);   // 温度なしの 2 行は除外
   });
 
-  test('listReadings が発行する本番同等のクエリの実行計画を確認する', async () => {
+  test('listReadings 相当のクエリが EXPLAIN 可能で、索引 idx_device_recorded がスキーマに存在する', async () => {
     // ブリーフの手書き EXPLAIN（SELECT l.device_id のみ）は idx_device_recorded の
     // 列だけで完結する covering index scan になり、行数に関係なく索引が選ばれる。
     // これは本番クエリ（status_data を含み JSON 述語も付く listReadings）が
@@ -172,9 +172,18 @@ describe('SensorLogRepository', () => {
     // すでに最悪の実行計画のため、pin してもリグレッションは検出できず（悪化しようが
     // ない）、唯一起こり得るのは誰かが将来ここを本当に改善したときにテストが失敗する
     // ことだけになる。実測値は docs/db-performance.md とこのコメントに記録している。
-    await mysql.db.executeQuery<ExplainRow>(
+    //
+    // このテストが実際に確認しているのは次の2点であり、EXPLAIN の実行自体と
+    // 5,000 行の投入はどちらも (1) のために必要（真に本番同等の SQL として
+    // 構文・バインドが妥当かを確かめるには、実データに対して実行してみるしかない）:
+    // (1) hasSensorReading / applyWindow から組み立てた本番同等の SQL が、
+    //     実データを持つ MySQL に対して構文的に妥当で実行可能であること
+    //     （EXPLAIN が例外を投げず、1 行の実行計画を返すこと）。
+    // (2) 索引 idx_device_recorded がスキーマ上に存在すること。
+    const explainResult = await mysql.db.executeQuery<ExplainRow>(
       CompiledQuery.raw(`EXPLAIN ${compiled.sql}`, [...compiled.parameters]),
     );
+    expect(explainResult.rows).toHaveLength(1);   // EXPLAIN が構文的に妥当な1クエリとして通ったこと
 
     const indexes = await sql<{ Key_name: string }>`SHOW INDEX FROM device_status_logs`.execute(mysql.db);
     expect(indexes.rows.some((r) => r.Key_name === 'idx_device_recorded')).toBe(true);
