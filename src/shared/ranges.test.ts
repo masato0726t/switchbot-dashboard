@@ -2,6 +2,10 @@ import { describe, expect, test } from 'vitest';
 import {
   RANGES, RANGE_BY_KEY, RANGE_KEYS, DEFAULT_RANGE, INTERVAL_UNITS,
 } from './ranges.js';
+// public/js/config.js は素の ESM（フロントエンドはまだ TypeScript 化していない）。
+// 直接 import することで、下の「一致する」テストが手計算のハードコードされた
+// 期待値ではなく、実際のフロントエンドのコピーとの一致を検証できるようにする。
+import { RANGES as CLIENT_RANGES } from '../../public/js/config.js';
 
 describe('RANGES', () => {
   test('9 種類の範囲を定義順に持つ', () => {
@@ -48,14 +52,15 @@ describe('RANGES', () => {
     }
   });
 
-  test('旧 public/js/config.js の RANGES と表示ラベル・日本語単位が一致する', () => {
-    const expected: Record<string, [string, string]> = {
-      '1h': ['1時間', '時間'], '6h': ['6時間', '時間'], '12h': ['12時間', '時間'],
-      '24h': ['24時間', '時間'], '1w': ['1週間', '日'], '1mo': ['1ヶ月', 'ヶ月'],
-      '1y': ['1年', '年'], '3y': ['3年', '年'], 'all': ['全部', ''],
-    };
+  test('public/js/config.js の RANGES と表示ラベル・日本語単位が一致する', () => {
+    // ハードコードした期待値ではなく実際のフロントエンドのファイルを import して
+    // 突き合わせる。フロントエンドのコピーだけが変更され、こちらの表と食い違う
+    // （ドリフトする）ことを検知できるようにするため。
+    expect(CLIENT_RANGES).toHaveLength(RANGES.length);
     for (const spec of RANGES) {
-      expect([spec.label, spec.unitJa]).toEqual(expected[spec.key]);
+      const clientSpec = CLIENT_RANGES.find((r) => r.key === spec.key);
+      expect(clientSpec, `public/js/config.js に ${spec.key} が見つからない`).toBeDefined();
+      expect([clientSpec!.label, clientSpec!.unitJa]).toEqual([spec.label, spec.unitJa]);
     }
   });
 });
