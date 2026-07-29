@@ -24,6 +24,15 @@ export interface TotalsCache {
   set(totals: Map<number, number>): void;
 }
 
-// ロガーの型。presentation も infrastructure もここから取ることで、
-// presentation → infrastructure という逆向きの import を作らずに済む。
-export type { Logger } from 'pino';
+// ロガーの型。application 層のポートなので、pino など具体的なロギング
+// ライブラリの型をそのまま名指しで再輸出しない（技術選定をポートの外へ
+// 漏らさない）。実際に呼んでいる形（メッセージのみの info、オブジェクトを
+// 先頭に取る warn/error の pino スタイル）だけを構造的に定義し、pino の
+// Logger はこれを構造的に満たすのでそのまま渡せる（ダックタイピング）。
+// presentation・infrastructure はここから取ることで、presentation →
+// infrastructure という逆向きの import を作らずに済む。
+export interface Logger {
+  info(msg: string): void;
+  warn(obj: Record<string, unknown>, msg: string): void;
+  error(obj: Record<string, unknown>, msg: string): void;
+}

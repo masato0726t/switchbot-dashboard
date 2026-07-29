@@ -4,6 +4,12 @@
 
 import { z } from 'zod';
 
+// LOG_LEVEL の許容値。配列を一度だけ書き、zod のスキーマにも AppConfig の型にも
+// 同じものを使う（z.enum が証明した絞り込みを、AppConfig.logLevel: string として
+// 手前で捨てないようにするため）。
+const LOG_LEVELS = ['fatal', 'error', 'warn', 'info', 'debug', 'trace'] as const;
+export type LogLevel = (typeof LOG_LEVELS)[number];
+
 const EnvSchema = z.object({
   DB_HOST: z.string().min(1),
   DB_PORT: z.coerce.number().int().positive().default(3306),
@@ -13,7 +19,7 @@ const EnvSchema = z.object({
   DB_POOL_LIMIT: z.coerce.number().int().positive().default(10),
   PORT: z.coerce.number().int().positive().default(3000),
   TOTALS_TTL_MS: z.coerce.number().int().positive().default(60_000),
-  LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
+  LOG_LEVEL: z.enum(LOG_LEVELS).default('info'),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
 });
 
@@ -28,7 +34,7 @@ export interface AppConfig {
     readonly poolLimit: number;
   };
   readonly totalsTtlMs: number;
-  readonly logLevel: string;
+  readonly logLevel: LogLevel;
   readonly nodeEnv: 'development' | 'production' | 'test';
 }
 
