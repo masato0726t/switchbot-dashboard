@@ -9,8 +9,7 @@
 // 表現し、SQL 断片の文字列連結は行わない。
 
 import { sql, type SelectQueryBuilder } from 'kysely';
-import { RANGE_BY_KEY, type IntervalUnit } from '../../../shared/ranges.js';
-import { resolveOffset, resolveRange } from '../../domain/range.js';
+import { RANGE_BY_KEY, type IntervalUnit, type RangeKey } from '../../../shared/ranges.js';
 import type { LogsDb } from './schema.js';
 
 type LogsQuery<O> = SelectQueryBuilder<LogsDb, 'l', O>;
@@ -18,17 +17,19 @@ type LogsQuery<O> = SelectQueryBuilder<LogsDb, 'l', O>;
 const ago = (count: number, unit: IntervalUnit) =>
   sql<Date>`DATE_SUB(NOW(), INTERVAL ${count} ${sql.raw(unit)})`;
 
-// range / offset はクエリ文字列由来の未検証の値を受け取り、内部で丸める。
-export function applyWindow<O>(qb: LogsQuery<O>, range: unknown, offset: unknown): LogsQuery<O> {
-  const spec = RANGE_BY_KEY[resolveRange(range)];
+// range / offset は呼び出し側（application 層の get-sensor-data.ts）が
+// resolveRange/resolveOffset で丸め済みの値だけを渡してくる。ここで再度
+// unknown を受けて丸め直す必要はない（Port（application/ports.ts）の
+// SensorLogRepository.listReadings がすでに RangeKey/number で型付けている）。
+export function applyWindow<O>(qb: LogsQuery<O>, range: RangeKey, offset: number): LogsQuery<O> {
+  const spec = RANGE_BY_KEY[range];
   if (spec.unit === null) return qb;          // 'all' は窓幅を持たないので絞り込まない
 
   const unit = spec.unit;
-  const off = resolveOffset(offset);
 
   // offset=0 は最新ウィンドウ（下限のみ）。offset=k は 1 区間幅ずつ k 個ぶん
   // 過去の窓 [NOW-(k+1)*span, NOW-k*span)。
   return qb
-    .where('l.recorded_at', '>=', ago(spec.count * (off + 1), unit))
-    .$if(off > 0, (q) => q.where('l.recorded_at', '<', ago(spec.count * off, unit)));
+    .where('l.recorded_at', '>=', ago(spec.count * (offset + 1), unit))
+    .$if(offset > 0, (q) => q.where('l.recorded_at', '<', ago(spec.count * offset, unit)));
 }

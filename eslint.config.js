@@ -66,10 +66,6 @@ export default [
     rules: {
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/consistent-type-imports': 'error',
-      // コールバック形状に合わせるためだけの未使用引数（例: Kysely の
-      // ExpressionBuilder を受け取るが式内では使わない関数）を許容する。
-      // 先頭 _ を明示した引数だけが対象なので、ただの書き忘れは従来通り検出される。
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
       // 依存の向きを機械的に強制する。レビューで人間が見張らなくてよくする。
       'boundaries/element-types': ['error', {
         default: 'disallow',

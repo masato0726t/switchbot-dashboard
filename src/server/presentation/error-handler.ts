@@ -6,7 +6,12 @@ import { isHttpError } from 'http-errors';
 import type { Logger } from '../application/ports.js';
 
 export function errorHandler(logger: Logger): ErrorRequestHandler {
-  return (err, req, res, _next) => {
+  return (err, req, res, next) => {
+    // レスポンス送出済み（例: 静的ファイル配信中のストリームエラーなど）の場合、
+    // ここで res.status().json() を呼ぶと "Cannot set headers after they are
+    // sent" を投げて二重に失敗する。Express の既定エラーハンドラに委譲する。
+    if (res.headersSent) { next(err); return; }
+
     const status = isHttpError(err) ? err.status : 500;
     const message = err instanceof Error ? err.message : String(err);
 

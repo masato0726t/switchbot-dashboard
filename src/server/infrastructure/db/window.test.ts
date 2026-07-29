@@ -1,15 +1,20 @@
 import { describe, expect, test } from 'vitest';
 import { INTERVAL_UNITS, RANGE_KEYS } from '../../../shared/ranges.js';
-import { createTestDb } from './create-db.js';
+import { resolveOffset, resolveRange } from '../../domain/range.js';
+import { createTestDb } from './create-test-db.js';
 import { applyWindow } from './window.js';
 
 const db = createTestDb();
 
+// applyWindow は resolveRange/resolveOffset 済みの検証済みの値だけを受け取る
+// （M6 対応）。ここでは本番の呼び出し経路（application 層が resolveRange/
+// resolveOffset で丸めてから repository に渡す）を再現し、不正値の丸め込みが
+// 依然として正しく効くこと（injection safety）を検証する。
 function compile(range: unknown, offset: unknown) {
   const { sql, parameters } = applyWindow(
     db.selectFrom('device_status_logs as l').select('l.device_id'),
-    range,
-    offset,
+    resolveRange(range),
+    resolveOffset(offset),
   ).compile();
   return { sql, parameters };
 }
