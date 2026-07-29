@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { buildSensorData, MAX_POINTS } = require('../lib/transform');
+const { buildSensorData, MAX_POINTS } = require('../lib/transform.cjs');
 
 const DEVICES = [
   { id: 1, device_name: 'リビング', device_type: 'WoIOSensor' },

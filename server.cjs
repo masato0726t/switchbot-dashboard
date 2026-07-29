@@ -3,11 +3,11 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 
-const { withConnection, closePool } = require('./lib/db');
-const { windowClause } = require('./lib/ranges');
-const { buildSensorData } = require('./lib/transform');
-const { isValidPlacement } = require('./lib/placement');
-const log = require('./lib/logger');
+const { withConnection, closePool } = require('./lib/db.cjs');
+const { windowClause } = require('./lib/ranges.cjs');
+const { buildSensorData } = require('./lib/transform.cjs');
+const { isValidPlacement } = require('./lib/placement.cjs');
+const log = require('./lib/logger.cjs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;

@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { lttb } = require('../lib/downsample');
+const { lttb } = require('../lib/downsample.cjs');
 
 const id = d => d.x;
 const val = d => d.y;

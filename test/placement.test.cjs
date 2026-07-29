@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { PLACEMENTS, defaultPlacement, isValidPlacement } = require('../lib/placement');
+const { PLACEMENTS, defaultPlacement, isValidPlacement } = require('../lib/placement.cjs');
 
 test('defaultPlacement は IO を含む種別を屋外と推測する', () => {
   assert.equal(defaultPlacement('WoIOSensor'), 'outdoor');

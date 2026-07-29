@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const {
   RANGE_SPECS, DEFAULT_RANGE, VALID_UNITS,
   resolveRange, resolveOffset, windowClause,
-} = require('../lib/ranges');
+} = require('../lib/ranges.cjs');
 
 test('有効なキーはそのまま返す', () => {
   for (const key of Object.keys(RANGE_SPECS)) {
