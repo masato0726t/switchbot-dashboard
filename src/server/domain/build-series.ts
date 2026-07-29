@@ -13,6 +13,7 @@ export const MAX_POINTS = 800;
 /**
  * デバイス一覧と測定値から、デバイス別の時系列を組み立てる。
  * 測定値は recorded_at の昇順に並んでいる前提（SQL 側で並べ替え済み）。
+ * 出力は deviceId の昇順（旧実装との一致を保つため）。
  * totals が無いデバイスは、表示範囲の生の点数で total を代替する。
  */
 export function buildSeries(
@@ -28,7 +29,10 @@ export function buildSeries(
     byDevice.get(deviceId)?.push(point);
   }
 
-  return devices.flatMap((device) => {
+  // 出力順を deviceId の昇順に統一する。入力順に依存しない動作を保証。
+  const sorted = [...devices].sort((a, b) => a.id - b.id);
+
+  return sorted.flatMap((device) => {
     const points = byDevice.get(device.id) ?? [];
     if (points.length === 0) return [];
     return [{

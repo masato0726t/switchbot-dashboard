@@ -109,4 +109,19 @@ describe('buildSeries', () => {
   test('MAX_POINTS は正の数', () => {
     expect(MAX_POINTS).toBeGreaterThan(0);
   });
+
+  test('出力は deviceId の昇順である（入力順に依存しない）', () => {
+    // 降順で渡したデバイスでも、出力は昇順になるべき（旧実装との互換性）
+    const devicesDescending: DeviceInfo[] = [
+      { id: 2, name: '書斎',     type: 'MeterPro(CO2)', placement: null },
+      { id: 1, name: 'リビング', type: 'WoIOSensor',   placement: null },
+    ];
+    const readings = [
+      reading(1, '2026-05-31T10:00:00Z', { temperature: 24, humidity: 55 }),
+      reading(2, '2026-05-31T10:00:00Z', { temperature: 22, humidity: 60 }),
+    ];
+    const out = buildSeries(devicesDescending, readings);
+    expect(out[0]!.deviceId).toBe(1);
+    expect(out[1]!.deviceId).toBe(2);
+  });
 });
