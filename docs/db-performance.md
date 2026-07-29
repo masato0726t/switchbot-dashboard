@@ -68,6 +68,50 @@ ALTER TABLE device_status_logs
 手順 1 の `EXPLAIN` を再実行し、`type` が `range`/`ref` になり
 `Using filesort` が消えていることを確認する。
 
+## 検証結果（Task 11: Testcontainers での実測）
+
+上記手順 3 は「索引を追加すれば `type` が `range`/`ref` になる」ことを期待して
+書かれていたが、実際に `idx_device_recorded` を含むスキーマ（`ddl/` をそのまま
+適用）に対して手順 1 の `EXPLAIN` を実行したところ、**期待は成立しなかった**。
+
+行数を増やす前の少数行（6 行）では確認に意味がないため、`device_status_logs`
+に約 5,000 行投入した上で、手順 1 と全く同じ `EXPLAIN`（`status_data` を含む
+SELECT・`JSON_LENGTH`/`JSON_EXTRACT` 述語つき）を実行した結果:
+
+```
++----+-------------+-------+------------+------+---------------+------+---------+------+------+----------+-----------------------------+
+| id | select_type | table | partitions | type | possible_keys | key  | key_len | ref  | rows | filtered | Extra                       |
++----+-------------+-------+------------+------+---------------+------+---------+------+------+----------+-----------------------------+
+|  1 | SIMPLE      | l     | NULL       | ALL  | NULL          | NULL | NULL    | NULL | 5000 |    33.33 | Using where; Using filesort |
++----+-------------+-------+------------+------+---------------+------+---------+------+------+----------+-----------------------------+
+```
+
+`type: ALL`・`key: NULL`・`Using filesort` のままで、索引 `idx_device_recorded`
+は選ばれない。理由は次の2点:
+
+- クエリに `device_id` の等値条件が無い（全デバイスの行を横断して取得する）ため、
+  複合索引 `(device_id, recorded_at)` を `recorded_at` だけでレンジスキャンする
+  ことができない。
+- `JSON_LENGTH` / `JSON_EXTRACT` の述語は sargable でなく、索引だけでは評価できない。
+
+**これは今回の移行（`server.cjs` → Kysely）が生んだ回帰ではない。** 同じ
+`EXPLAIN` を旧 `server.cjs`（`SENSOR_LOG_FILTER` + `windowClause` が組み立てる、
+文字列として同一の SQL）に対しても実行し、新実装とまったく同じ実行計画
+（`type: ALL` / `key: NULL` / `Using where; Using filesort`）になることを確認した。
+つまり `idx_device_recorded` は手順1〜2の想定どおりには効いておらず、これは
+索引追加前からこのクエリ形状が持っていた性質であり、Task 11 で初めて
+Testcontainers を使って実測するまで検証されていなかった。
+
+改善するには、上記いずれかの制約を崩す変更（例: デバイス別に分けてクエリする、
+JSON 値を生成列に切り出して索引化する等）が必要で、収集側スキーマとの調整を
+伴うためこのドキュメントの範囲を超える。対応要否の判断は別途行う。
+
+このため `src/server/infrastructure/db/repositories.integration.test.ts` の
+該当テストは、「索引が選ばれること」ではなく「索引 `idx_device_recorded` が
+スキーマ上に存在すること」（`SHOW INDEX FROM device_status_logs`）と、上記の
+実測プラン（`type: ALL` / `key: NULL`）が現状から変化していないことを検証する
+形にしている。
+
 ## 補足：JSON フィルタについて
 
 `SENSOR_LOG_FILTER`（`JSON_LENGTH` / `JSON_EXTRACT`）は sargable でないため、
