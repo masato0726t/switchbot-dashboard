@@ -134,15 +134,29 @@ describe('SensorLogRepository', () => {
     // 同じ部品（hasSensorReading / applyWindow）でクエリを組み立て直し、.compile() した
     // SQL とバインド値をそのまま EXPLAIN に渡して構造的な一致を保証する。
     //
-    // 索引選択はテーブル規模と選択率に左右されるため、5,000 行を 30 日ぶんに散らして
-    // から計測する（beforeEach の 6 行ではオプティマイザの判断材料として少なすぎ、
-    // 24 時間窓の選択率も出ない）。
-    const bulk: SeedRow[] = Array.from({ length: 5000 }, (_, i) => ({
+    // 索引選択はテーブル規模と選択率に左右されるため、5,000 行を 30 日ぶんに
+    // 等間隔で散らしてから計測する（beforeEach の 6 行ではオプティマイザの
+    // 判断材料として少なすぎ、24 時間窓の選択率も出ない）。
+    //
+    // 間隔は「全期間 ÷ 行数」で決める。i % 全期間分 のような書き方をすると、
+    // 行数が全期間の分数より少ないうちは剰余が効かず minutesAgo が 0..4999
+    // （＝直近 3.5 日）に固まってしまう。すると 24 時間窓の選択率が 3% ではなく
+    // 29% になり、オプティマイザは索引レンジスキャンではなくフルスキャンを選ぶ。
+    const ROW_COUNT = 5000;
+    const SPAN_MINUTES = 60 * 24 * 30;
+    const STEP_MINUTES = SPAN_MINUTES / ROW_COUNT;
+
+    const bulk: SeedRow[] = Array.from({ length: ROW_COUNT }, (_, i) => ({
       deviceId: (i % 2) + 1,
-      minutesAgo: i % (60 * 24 * 30),
+      minutesAgo: Math.floor(i * STEP_MINUTES),
       status: { temperature: 15 + (i % 15), humidity: 50 },
     }));
     await mysql.seedLogs(bulk);
+
+    // 意図した選択率になっているかを先に確かめる。ここがずれていると、
+    // 下の EXPLAIN は「クエリ形状」ではなく「テストデータの偏り」を測ることになる。
+    const within24h = bulk.filter((row) => row.minutesAgo < 60 * 24).length;
+    expect(within24h / ROW_COUNT).toBeLessThan(0.05);
 
     // 大量挿入の直後は InnoDB の永続統計が古いままで、オプティマイザが実際の
     // 選択率を知らずにフルスキャンを選ぶ。本番のテーブルは統計が自然に蓄積されて
