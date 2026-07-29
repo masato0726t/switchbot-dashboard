@@ -19,5 +19,8 @@
     "allowJs": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["src"]
+  // src/client（Vue + Vite のエアコン設定画面）は lib に DOM が要り、
+  // モジュール解決も bundler になるため tsconfig.client.json 側で見る。
+  "include": ["src"],
+  "exclude": ["src/client"]
 }

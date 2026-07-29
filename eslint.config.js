@@ -6,7 +6,8 @@ import tseslint from 'typescript-eslint';
 import boundaries from 'eslint-plugin-boundaries';
 
 export default [
-  { ignores: ['node_modules/**', 'dist/**'] },
+  // public/ac/ は vite build の成果物なので対象外。
+  { ignores: ['node_modules/**', 'dist/**', 'public/ac/**'] },
 
   js.configs.recommended,
 
@@ -60,6 +61,8 @@ export default [
         { type: 'presentation',   pattern: 'src/server/presentation/**/*', mode: 'file' },
         { type: 'config',         pattern: 'src/server/config.ts', mode: 'file' },
         { type: 'main',           pattern: 'src/server/main.ts', mode: 'file' },
+        // エアコン設定画面（Vue）。API 契約を通してのみサーバーとつながる。
+        { type: 'client',         pattern: 'src/client/**/*', mode: 'file' },
       ],
       'boundaries/include': ['src/**/*.ts'],
     },
@@ -76,6 +79,8 @@ export default [
           { from: 'infrastructure', allow: ['infrastructure', 'application', 'domain', 'shared', 'config'] },
           { from: 'presentation',   allow: ['presentation', 'application', 'domain', 'shared'] },
           { from: 'config',         allow: ['config'] },
+          // クライアントはサーバーの内部実装に触れず、共有の API 契約だけを見る。
+          { from: 'client',         allow: ['client', 'shared'] },
           { from: 'main',           allow: ['main', 'presentation', 'application', 'infrastructure', 'domain', 'shared', 'config'] },
         ],
       }],

@@ -16,6 +16,12 @@ header {
 header h1 { font-size: 1.2rem; font-weight: 600; color: #f1f5f9; }
 header .subtitle { font-size: 0.78rem; color: #94a3b8; margin-top: 2px; }
 .header-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+/* エアコン設定画面（/ac/）へのリンク。 */
+.page-link {
+  color: #93c5fd; text-decoration: none; font-size: 0.82rem;
+  border: 1px solid #334155; border-radius: 9999px; padding: 3px 12px;
+}
+.page-link:hover { color: #dbeafe; border-color: #64748b; }
 .live-badge {
   display: flex; align-items: center; gap: 6px;
   background: #14532d; border: 1px solid #166534;

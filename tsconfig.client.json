@@ -1,0 +1,25 @@
+{
+  // エアコン設定画面（Vue + Vite）用。サーバー側とは必要な lib も
+  // モジュール解決も違うため設定を分ける。
+  //
+  // - lib に DOM を足す（fetch / window / HTMLInputElement を使う）
+  // - moduleResolution は bundler。Vite が .js 指定から .ts を解決するのに合わせる
+  // - src/shared も対象に入れる。契約スキーマをサーバーと共用するため
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "jsx": "preserve",
+    "noEmit": true,
+    "types": ["vite/client"]
+  },
+  "include": ["src/client/**/*.ts", "src/client/**/*.vue", "src/client/env.d.ts", "src/shared/**/*.ts"],
+  "exclude": ["src/shared/**/*.test.ts"]
+}

@@ -23,6 +23,8 @@ Thumbs.db
 
 # ビルド成果物
 dist/
+# エアコン設定画面（Vue）の vite build 出力。npm run build で生成する。
+public/ac/
 
 # 作業用のスクラッチ（実装の進捗台帳・レビュー用の差分など）
 .superpowers/

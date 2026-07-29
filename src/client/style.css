@@ -1,0 +1,178 @@
+/* エアコン設定画面のスタイル。既存のグラフ画面（public/css/style.css）の
+   配色・角丸・余白の使い方に合わせてある。 */
+
+:root {
+  --bg: #f5f7fa;
+  --card-bg: #ffffff;
+  --border: #e1e6ed;
+  --text: #2c3e50;
+  --muted: #7f8c9a;
+  --accent: #3498db;
+  --danger: #e74c3c;
+  --warning-bg: #fef5e7;
+  --warning-text: #9c6303;
+  --error-bg: #fdedec;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 1.5rem;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", sans-serif;
+  line-height: 1.7;
+}
+
+h1 { font-size: 1.5rem; margin: 0; }
+h2 { font-size: 1.15rem; margin: 0 0 0.75rem; }
+
+.page-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.page-header a { color: var(--accent); text-decoration: none; }
+.page-header a:hover { text-decoration: underline; }
+
+.lead { color: var(--muted); margin: 0 0 1.25rem; font-size: 0.9rem; }
+
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.card-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.toggle { display: inline-flex; align-items: center; gap: 0.4rem; cursor: pointer; }
+
+.status {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.25rem 1rem;
+  margin: 0 0 1rem;
+  font-size: 0.9rem;
+}
+
+.status dt { color: var(--muted); }
+.status dd { margin: 0; }
+
+.banner {
+  padding: 0.6rem 0.9rem;
+  border-radius: 8px;
+  margin: 0 0 1rem;
+  background: #eaf4fc;
+}
+
+.banner.error, .error { background: var(--error-bg); color: var(--danger); }
+.error { border-radius: 6px; }
+
+.warning {
+  background: var(--warning-bg);
+  color: var(--warning-text);
+  padding: 0.6rem 0.9rem;
+  border-radius: 8px;
+  margin: 0 0 1rem;
+  font-size: 0.9rem;
+}
+
+.empty { color: var(--muted); }
+.muted { color: var(--muted); }
+
+.hint {
+  display: block;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+button {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+button[type="submit"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+button[type="submit"]:hover:not(:disabled) { color: #fff; opacity: 0.9; }
+button.danger { color: var(--danger); border-color: #f5b7b1; }
+button.danger:hover:not(:disabled) { border-color: var(--danger); color: var(--danger); }
+
+.editor { border-top: 1px solid var(--border); margin-top: 1rem; padding-top: 1rem; }
+
+/* 設定フォームは 2 列。狭い画面では 1 列へ折り返す。 */
+.rule-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: 0.9rem 1.5rem;
+}
+
+.rule-form > label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.9rem; }
+
+input[type="text"], input[type="number"], input[type="time"], select {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: inherit;
+  max-width: 14rem;
+}
+
+.schedules {
+  grid-column: 1 / -1;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.9rem;
+}
+
+.schedules legend { padding: 0 0.4rem; font-size: 0.9rem; color: var(--muted); }
+
+.schedule-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: flex-end;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.schedule-row.has-error { background: var(--error-bg); border-radius: 6px; padding-inline: 0.5rem; }
+.schedule-row label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.85rem; }
+.schedule-row input { max-width: 8rem; }
+.schedule-row .error { flex-basis: 100%; margin: 0; padding: 0.3rem 0.5rem; font-size: 0.85rem; }
+
+/* 履歴の表は幅が広くなるので、表だけを横スクロールさせる
+   （ページ全体が横に伸びないようにする）。 */
+.log-scroll { overflow-x: auto; margin-top: 1rem; }
+
+.log-table { border-collapse: collapse; width: 100%; font-size: 0.85rem; }
+.log-table th, .log-table td { border-bottom: 1px solid var(--border); padding: 0.4rem 0.6rem; text-align: left; white-space: nowrap; }
+.log-table th { color: var(--muted); font-weight: 600; }
+.log-table td:nth-child(4) { white-space: normal; min-width: 16rem; }
+.log-table tr.failure { background: var(--error-bg); }

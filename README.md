@@ -14,6 +14,7 @@ SwitchBot デバイスの温度・湿度・CO2 データをリアルタイムで
 - 長期間データの自動ダウンサンプリング（LTTB）でグラフ描画を高速化
 - 30 秒ごとの自動更新
 - 新しいデータ取得時のフラッシュアニメーション
+- **エアコン自動制御の設定・送信履歴の表示**（`/ac/`。詳しくは「エアコン自動制御」節）
 
 ## 動作要件
 
@@ -27,14 +28,22 @@ SwitchBot デバイスの温度・湿度・CO2 データをリアルタイムで
 
 | ファイル | テーブル | 管理 | 備考 |
 |---------|---------|------|------|
-| `ddl/devices.sql`            | `devices`            | データ収集側 | 参照のみ（自動実行しない） |
-| `ddl/device_status_logs.sql` | `device_status_logs` | データ収集側 | 参照のみ（自動実行しない） |
-| `ddl/device_settings.sql`    | `device_settings`    | ダッシュボード | **起動時に自動実行**（手動作成不要） |
+| `ddl/devices.sql`               | `devices`              | データ収集側 | 参照のみ（自動実行しない） |
+| `ddl/device_status_logs.sql`    | `device_status_logs`   | データ収集側 | 参照のみ（自動実行しない） |
+| `ddl/api_accounts.sql`          | `api_accounts`         | データ収集側 | 参照のみ（自動実行しない） |
+| `ddl/ac_control_rules.sql`      | `ac_control_rules`     | エアコン制御側 | 参照のみ（自動実行しない） |
+| `ddl/ac_control_schedules.sql`  | `ac_control_schedules` | エアコン制御側 | 参照のみ（自動実行しない） |
+| `ddl/ac_command_logs.sql`       | `ac_command_logs`      | エアコン制御側 | 参照のみ（自動実行しない） |
+| `ddl/device_settings.sql`       | `device_settings`      | ダッシュボード | **起動時に自動実行**（手動作成不要） |
 
-`devices` / `device_status_logs` はデータ収集側が管理するテーブルで、参考用に
-DDL を置いてあるだけです。ダッシュボードは設置場所（室内 / 屋外）を保持する
-`device_settings` のみを自己管理し、サーバー（`src/server/main.ts`）が起動時に
-`ddl/device_settings.sql` を読み込んで実行します（収集側テーブルには手を加えません）。
+`devices` / `device_status_logs` / `api_accounts` はデータ収集側
+（[switchBotStore](../../GolandProjects/switchBotStore)）が、`ac_*` の 3 つは
+エアコン制御側（[auto-air-conditioner](../../vue/src/auto-air-conditioner)）が
+管理するテーブルです。参考用に DDL を置いてあるだけで、ダッシュボードは実行しません。
+
+ダッシュボードが自己管理するのは、設置場所（室内 / 屋外）を保持する
+`device_settings` のみで、サーバー（`src/server/main.ts`）が起動時に
+`ddl/device_settings.sql` を読み込んで実行します。
 
 設定が無いデバイスは `device_type` から初期推測します（`IO` を含む種別＝屋外、
 それ以外＝室内）。最終的な設置場所は画面のトグルでいつでも変更できます。
@@ -84,9 +93,13 @@ cp .env.example .env
 **リポジトリ全体**（`dist/` に加えて `public/`・`ddl/`・`node_modules/` 一式）を配置してください。
 
 ```bash
-npm run build                    # TypeScript をビルド（dist/ に出力）
+npm run build                    # サーバー（dist/）とエアコン設定画面（public/ac/）をビルド
 NODE_ENV=production npm start    # dist/server/main.js を起動
 ```
+
+`npm run build` は 2 段構えです。`build:server` が TypeScript を `dist/` へ出力し、
+`build:client` が Vite でエアコン設定画面を `public/ac/` へ出力します。`public/ac/` は
+生成物なので Git では追跡しません（`.gitignore` 対象）。**本番でもビルドが必要です。**
 
 **本番では `NODE_ENV=production` を必ず指定してください。** 省略すると既定値の
 `development` になり、`createLogger` が `pino-pretty` の整形用ワーカースレッドを
@@ -119,9 +132,12 @@ PM2 のプロセス定義（起動スクリプト・メモリ上限・`NODE_ENV`
 `ecosystem.config.cjs` が唯一の出典です。`pm2 start npm -- start` のように手動で
 起動するとこの設定が一切効かなくなるため避けてください。
 
-開発中は `npm run dev`（`tsx watch`）でビルド無しに再起動できます。
+開発中は `npm run dev`（`tsx watch`）でビルド無しに再起動できます。エアコン設定画面を
+いじるときは、別のターミナルで `npm run dev:client`（Vite の開発サーバー）を動かすと
+ホットリロードが効きます（`/api` は `npm run dev` 側へ中継されます）。
 
-ブラウザで `http://localhost:3000` を開いてください。
+ブラウザで `http://localhost:3000` を開いてください。エアコン設定画面は
+`http://localhost:3000/ac/` です。
 
 `PORT` 環境変数で待ち受けポートを変更できます（デフォルト 3000）。
 
@@ -185,6 +201,51 @@ UI の「データ件数（表示 / 全）」カードでは、メインに `dat
 `placement` は `indoor` / `outdoor` のいずれかのみ受け付け、それ以外は `400` を返します。
 成功時は `{ "device_id": 1, "placement": "outdoor" }` を返します。
 
+### エアコン自動制御 `/api/ac/*`
+
+| メソッド・パス | 内容 |
+|---|---|
+| `GET /api/ac/rules` | ルール一覧。時間帯・推定運転状態・基準センサーの最新値・湿度警告を含む |
+| `POST /api/ac/rules` | ルール作成（時間帯を内包）。成功時は `201` と `{ "id": 1 }` |
+| `PUT /api/ac/rules/:id` | ルール更新。時間帯はトランザクションで全置換 |
+| `DELETE /api/ac/rules/:id` | ルール削除。時間帯と送信履歴も一緒に消える |
+| `PUT /api/ac/rules/:id/enabled` | 有効／無効の切替。ボディ `{ "enabled": true }` |
+| `PUT /api/ac/rules/:id/snooze` | 一時停止。ボディ `{ "hours": 3 }`、`0` で解除 |
+| `GET /api/ac/rules/:id/logs` | 送信履歴。`limit` は既定 50・最大 200（範囲外は既定値に丸める） |
+| `GET /api/ac/devices` | 選択候補（エアコンと、直近 24 時間に温度ログのあるセンサー） |
+
+入力の検証は `src/shared/ac-contract.ts` の zod スキーマ 1 箇所に集約しています。
+サーバーの入力検査・レスポンスの型・クライアントの型がすべてそこから導かれるため、
+契約と実装がずれるとコンパイル時に気付けます。対象のルールが無ければ `404`、
+入力が不正なら `400` を返します。
+
+## エアコン自動制御
+
+SwitchBot ハブ経由の赤外線エアコンを、温湿度ログを基準に自動で運転・停止する
+仕組みです。実際にエアコンを操作するのは別プロセスの制御ツール
+[auto-air-conditioner](../../vue/src/auto-air-conditioner)（Go・タスクスケジューラで
+5 分ごとに実行）で、このダッシュボードはその設定を預かって表示するだけです。
+設定を保存してもすぐには操作されず、次に制御ツールが動いたときに反映されます。
+
+**使い始める前に、制御ツールを 1 回実行してください。** `ac_*` の 3 テーブルは
+制御ツールが goose のマイグレーションで作るため、それまで `/ac/` は
+「ルールが見つかりません」ではなく DB エラーになります。
+
+画面（`/ac/`）でできること:
+
+- ルールごとの現在の状態表示（推定している運転状態・基準センサーの最新値）
+- 自動制御の有効／無効の切り替え、一時停止（1h / 3h / 8h / 解除）
+- 目標温度・湿度の上限／下限・許容幅・風量・各種間隔の編集
+- 時間帯別の目標値の追加・削除（重複はその場でエラー表示）
+- 送信履歴の表示（いつ・なぜ・何を送り、そのときの室温／湿度はいくつだったか）
+
+**湿度の下限は警告表示専用**です。エアコンでは加湿できないため、制御ツールは運転の
+判断に使いません。下回ったときに画面で気付けるようにしてあるだけで、加湿器を使うかは
+利用者の判断です。**自動制御を無効にしてもエアコンは停止しません**（「手動でリモコンを
+使いたいから無効にする」使い方を想定しているため）。
+
+制御の判断そのもの（ヒステリシス・再送・安全弁）は制御ツール側の README に書いてあります。
+
 ## ダウンサンプリングについて
 
 長期間（1 年・3 年・全部など）を表示するとデータ点数が膨大になり描画が重くなるため、
@@ -232,6 +293,8 @@ main → presentation → application → domain
   `application` のポートを実装／利用するだけで、互いには依存しません。
 - `main.ts` だけが全層を import して配線します。アプリ全体の依存関係は
   `src/server/main.ts` を読むだけで把握できます。
+- `src/client`（エアコン設定画面の Vue）は `shared` だけに依存します。サーバーの
+  内部実装には触れず、API 契約（`src/shared/ac-contract.ts`）を通してのみつながります。
 
 この向きは ESLint の `boundaries/element-types` ルール（`eslint.config.js`）が機械的に
 強制しており、逆向きの import はレビューを待たず lint エラーになります。
@@ -271,10 +334,30 @@ switchbot-dashboard/
 │   │   │   └── routes/         # /api/sensor-data・/api/devices/:id/placement
 │   │   ├── config.ts        # 環境変数の読み取りと検証（zod）
 │   │   └── main.ts          # 合成ルート。全層の配線はここだけで行う
-│   └── shared/            # フロントエンドとも共有する型・純粋関数（表示範囲など）
+│   ├── client/            # エアコン設定画面（Vue 3 + Vite）。/ac/ で配信
+│   │   ├── index.html          # Vite のエントリ HTML
+│   │   ├── main.ts             # エントリ
+│   │   ├── App.vue             # ルール一覧・追加フォーム・通信の取りまとめ
+│   │   ├── RuleCard.vue        # ルール 1 件のカード（状態表示・操作・履歴）
+│   │   ├── RuleForm.vue        # 設定値の編集フォーム（作成・更新で共用）
+│   │   ├── ScheduleEditor.vue  # 時間帯別の目標値の編集（重複をその場で表示）
+│   │   ├── CommandLogTable.vue # 送信履歴の表
+│   │   ├── api.ts              # fetch ラッパ。応答を契約スキーマで検証する
+│   │   ├── format.ts           # 表示用の純粋ヘルパー
+│   │   └── style.css           # 設定画面のスタイル
+│   └── shared/            # フロントエンドとも共有する型・純粋関数
+│       ├── ranges.ts            # 表示範囲
+│       ├── api-contract.ts      # センサーデータ API の契約（zod）
+│       ├── ac-contract.ts       # エアコン制御 API の契約（zod）
+│       ├── ac-schedule.ts       # 時間帯の分↔時刻変換・重複判定（純粋）
+│       └── air-conditioner.ts   # モード・風量・値域の定数とラベル
 ├── ddl/                 # テーブル DDL
 │   ├── devices.sql              # デバイス一覧（収集側管理・参照用）
 │   ├── device_status_logs.sql   # センサーログ（収集側管理・参照用）
+│   ├── api_accounts.sql         # API アカウント（収集側管理・参照用）
+│   ├── ac_control_rules.sql     # エアコン制御ルール（制御側管理・参照用）
+│   ├── ac_control_schedules.sql # 時間帯別の目標値（制御側管理・参照用）
+│   ├── ac_command_logs.sql      # コマンド送信履歴（制御側管理・参照用）
 │   └── device_settings.sql      # 設置場所テーブル（起動時に自動実行）
 ├── scripts/
 │   └── seed-verify.sql  # 手動確認用のシード（DB スキーマ変更時などに使う）
