@@ -121,10 +121,17 @@ JSON 値を生成列に切り出して索引化する等）が必要で、収集
 伴うためこのドキュメントの範囲を超える。対応要否の判断は別途行う。
 
 このため `src/server/infrastructure/db/repositories.integration.test.ts` の
-該当テストは、「索引が選ばれること」ではなく「索引 `idx_device_recorded` が
-スキーマ上に存在すること」（`SHOW INDEX FROM device_status_logs`）と、上記の
-実測プラン（`type: ALL` / `key: NULL`）が現状から変化していないことを検証する
-形にしている。
+該当テスト（`listReadings 相当のクエリが EXPLAIN 可能で、索引
+idx_device_recorded がスキーマに存在する`）は、repository と同じ
+ビルディングブロック（`hasSensorReading` / `applyWindow`）で組み立てた
+本番同等の SQL を実データに対して `EXPLAIN` 実行し、それが構文的に妥当で
+実行できること、そして「索引 `idx_device_recorded` がスキーマ上に存在すること」
+（`SHOW INDEX FROM device_status_logs`）の 2 点だけを検証する形にしている。
+`type` / `key` を特定の値（`ALL` / `NULL`）に固定するアサーションは意図的に
+置いていない。すでに最悪の実行計画のため pin してもリグレッションは検出できず
+（悪化しようがない）、唯一起こり得るのは将来ここが本当に改善されたときに
+テストが失敗することだけになるためである。上記の実測プランはこの
+ドキュメントとテスト内のコメントに記録している。
 
 ## 補足：JSON フィルタについて
 
