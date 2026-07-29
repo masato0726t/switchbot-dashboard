@@ -17,7 +17,10 @@ import { createTotalsCache } from './infrastructure/totals-cache.js';
 import { createApp } from './presentation/create-app.js';
 
 // dist/server/main.js（ビルド後）からも src/server/main.ts（tsx 実行）からも
-// 2 階層上がるとリポジトリルートになる。
+// 2 階層上がるとリポジトリルートになる。この下の public/・ddl/ 参照はどちらも
+// ROOT（リポジトリルート）基準なので、本番配置は dist/ 単体では完結しない。
+// public/・ddl/（と node_modules/）を含むリポジトリ全体を配置すること
+// （README の「起動」節にも明記）。
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 
 const config = loadConfig(process.env);
@@ -65,10 +68,30 @@ const server = app.listen(config.port, () => {
   logger.info(`SwitchBot ダッシュボード起動: http://localhost:${config.port} (pid ${process.pid})`);
 });
 
-// PM2 の reload / stop（SIGINT・SIGTERM）と想定外の例外をまとめて捌く。
+// PM2 の reload / stop（SIGINT・SIGTERM）と uncaughtException を捌いてプロセスを
+// 終了する。unhandledRejection はここでは終了させず、`skip` で close-with-grace の
+// 対象から外し、下の専用ハンドラでログのみ出して継続する。両者を分ける理由:
+//
+// - uncaughtException は同期的な例外が誰にも catch されずに投げられた状態で、
+//   スタックやモジュール内部の状態がどこまで壊れているか保証できない。Node 自身も
+//   uncaughtException 後にプロセスを継続させず再起動する運用を推奨しているため、
+//   ここは従来どおり close-with-grace に任せて HTTP を閉じてから終了する。
+// - unhandledRejection は事情が異なる。Promise の catch 漏れは 1 箇所のバグでも
+//   起こり得るが、影響範囲は多くの場合その 1 件の非同期処理に閉じる。これだけで
+//   プロセス全体を終了させると、上の「DDL 未適用時は listen を継続する」判断
+//   （46-56 行目）が避けようとしたのと同じ壊れ方——PM2 が min_uptime 未満の
+//   再起動を繰り返し max_restarts で諦めて errored のまま停止し、静的ファイルすら
+//   配信されなくなる全断——を、旧 server.cjs には無かった障害モードとして
+//   新たに持ち込んでしまう（旧実装は uncaughtException/unhandledRejection の
+//   どちらもログのみ出して継続していた）。そのため unhandledRejection は
+//   ログに残して握りつぶし、プロセスは生かし続ける。
 // HTTP を閉じ切ってから DB プールも解放する（残すとプロセスが終了しない）。
-closeWithGrace({ delay: 10_000, logger }, async ({ err }) => {
-  if (err) logger.error({ err }, '想定外のエラーで終了します');
+process.on('unhandledRejection', (err) => {
+  logger.error({ err }, '未処理の Promise rejection を検出（プロセスは継続します）');
+});
+
+closeWithGrace({ delay: 10_000, logger, skip: ['unhandledRejection'] }, async ({ err }) => {
+  if (err) logger.error({ err }, '想定外の例外で終了します');
   await new Promise<void>((resolve, reject) => {
     server.close((closeErr) => (closeErr ? reject(closeErr) : resolve()));
   });
