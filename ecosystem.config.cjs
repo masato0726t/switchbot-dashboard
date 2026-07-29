@@ -4,7 +4,7 @@ module.exports = {
   apps: [
     {
       name: 'switchbot-dashboard',
-      script: 'server.js',
+      script: 'dist/server/main.js',
       instances: 1,
       exec_mode: 'fork',
 

@@ -50,9 +50,12 @@ ALTER TABLE device_status_logs
   ADD INDEX idx_device_recorded (device_id, recorded_at);
 ```
 
-- `(device_id, recorded_at)` の順にすることで、`ORDER BY device_id, recorded_at`
-  を索引順スキャンでまかない **filesort を解消**でき、表示窓の `recorded_at`
-  範囲もデバイス単位のレンジスキャンになる。
+- `(device_id, recorded_at)` の順にすることで、`device_id` の等値条件を持つ
+  クエリであれば `ORDER BY device_id, recorded_at` を索引順スキャンでまかない
+  filesort を解消し、`recorded_at` 範囲もデバイス単位のレンジスキャンにできる
+  ——というのがこの索引を追加する動機（一般論）である。**ただし、この
+  ダッシュボードの表示窓クエリ自体は `device_id` の等値条件を持たないため、
+  この効果は実際には発生しない。** 詳しくは下記「検証結果」を参照。
 - MySQL 8 の `ALTER TABLE ... ADD INDEX` は既定で **オンライン（`ALGORITHM=INPLACE`,
   `LOCK=NONE`）** で動くため、収集の書き込みを止めずに追加できる。
   明示するなら:
@@ -63,10 +66,13 @@ ALTER TABLE device_status_logs
   ALGORITHM=INPLACE, LOCK=NONE;
 ```
 
-### 3. 効果を再確認
+### 3. 効果を再確認（この手順は当初の期待であり、下記「検証結果」の実測では成立していない）
 
 手順 1 の `EXPLAIN` を再実行し、`type` が `range`/`ref` になり
-`Using filesort` が消えていることを確認する。
+`Using filesort` が消えていることを**期待していた**。しかし下記「検証結果（Task 11:
+Testcontainers での実測）」の通り、表示窓クエリでは実際には `type: ALL` / `key: NULL` の
+ままで変化しないことを確認済み。索引追加の効果を判断する際は、この節の記述ではなく
+実測結果の節を参照すること。
 
 ## 検証結果（Task 11: Testcontainers での実測）
 
@@ -115,20 +121,33 @@ JSON 値を生成列に切り出して索引化する等）が必要で、収集
 ## 補足：JSON フィルタについて
 
 `SENSOR_LOG_FILTER`（`JSON_LENGTH` / `JSON_EXTRACT`）は sargable でないため、
-上記の索引でも JSON 条件自体は行評価のまま残る。ただし手順 2 の索引で
-**評価対象の行が時間窓に絞られる**ため、表示窓クエリは十分速くなる。
+索引の有無にかかわらず JSON 条件自体は行ごとの評価のまま残る。
 
-総件数クエリ（時間窓なし＝全行に JSON 評価）は索引で速くできないため、
-アプリ側で TTL キャッシュ（`server.js` の `getTotals` / `TOTALS_TTL_MS`、
-既定 60 秒）して実行頻度を下げている。さらに削りたい場合の選択肢:
+**当初の想定（この節の元々の記述）**: 手順 2 の索引があれば、少なくとも表示窓
+クエリの評価対象行が `recorded_at` の時間範囲で絞られ、それだけでも十分速くなる
+だろう、というものだった。
+
+**実測（上記「検証結果（Task 11: Testcontainers での実測）」）**: この想定は
+成立しなかった。表示窓クエリは `device_id` の等値条件を持たないため複合索引
+`(device_id, recorded_at)` をレンジスキャンできず、`type: ALL` / `key: NULL` の
+フルスキャンのままになる。フルスキャンでは全行を走査したうえで `recorded_at`
+と JSON 条件を行ごとに評価するため、索引を追加しても走査行数・JSON 評価回数の
+どちらも減らない。したがって「索引で評価対象行が絞られて速くなる」という
+記述は誤りであり、ここで訂正する。
+
+総件数クエリ（時間窓なし＝全行に JSON 評価）が索引で速くできない、という点は
+上記の実測と当初の想定が一致しており、そのまま正しい。アプリ側で TTL キャッシュ
+（`src/server/infrastructure/totals-cache.ts` / `TOTALS_TTL_MS`、既定 60 秒）して
+実行頻度を下げているのはこのため。さらに削りたい場合の選択肢:
 
 - JSON 値を**生成列（generated column）+ 索引**に切り出して sargable 化する
-  （収集側スキーマ変更が必要）。
+  （収集側スキーマ変更が必要）。表示窓クエリの `type: ALL` を解消するにも
+  同様の対応が要る。
 - 総件数をデバイス別サマリーテーブルに持たせ、収集時に更新する。
 
 ## 関連する環境変数
 
 | 変数名 | 既定値 | 説明 |
 |--------|--------|------|
-| `DB_POOL_LIMIT` | `10` | コネクションプールの最大接続数（`lib/db.js`） |
-| `TOTALS_TTL_MS` | `60000` | 総件数キャッシュの有効期間ミリ秒（`server.js`） |
+| `DB_POOL_LIMIT` | `10` | コネクションプールの最大接続数（`src/server/infrastructure/db/create-db.ts`） |
+| `TOTALS_TTL_MS` | `60000` | 総件数キャッシュの有効期間ミリ秒（`src/server/infrastructure/totals-cache.ts`） |

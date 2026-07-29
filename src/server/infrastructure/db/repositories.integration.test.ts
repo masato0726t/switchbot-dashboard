@@ -157,11 +157,6 @@ describe('SensorLogRepository', () => {
       .orderBy('l.recorded_at', 'asc')
       .compile();
 
-    const plan = await mysql.db.executeQuery<ExplainRow>(
-      CompiledQuery.raw(`EXPLAIN ${compiled.sql}`, [...compiled.parameters]),
-    );
-    const row = plan.rows[0]!;
-
     // 実測: device_id に等値条件が無いため複合索引 (device_id, recorded_at) を
     // レンジスキャンできず、JSON 述語も sargable ではないので、オプティマイザは
     // フルスキャン＋filesort を選ぶ（type: ALL, key: null）。これは今回の移行
@@ -172,8 +167,14 @@ describe('SensorLogRepository', () => {
     // ここでは「索引そのものは存在する」ことだけを検証する
     // （索引の恩恵を偽って主張するテストにしないため、type/key を都合よく
     // 緩めたり FORCE INDEX で無理に使わせたりはしない）。
-    expect(row.type).toBe('ALL');
-    expect(row.key).toBeNull();
+    //
+    // type/key を pin するアサーションは意図的に置かない。type: ALL / key: NULL は
+    // すでに最悪の実行計画のため、pin してもリグレッションは検出できず（悪化しようが
+    // ない）、唯一起こり得るのは誰かが将来ここを本当に改善したときにテストが失敗する
+    // ことだけになる。実測値は docs/db-performance.md とこのコメントに記録している。
+    await mysql.db.executeQuery<ExplainRow>(
+      CompiledQuery.raw(`EXPLAIN ${compiled.sql}`, [...compiled.parameters]),
+    );
 
     const indexes = await sql<{ Key_name: string }>`SHOW INDEX FROM device_status_logs`.execute(mysql.db);
     expect(indexes.rows.some((r) => r.Key_name === 'idx_device_recorded')).toBe(true);
