@@ -25,10 +25,68 @@ export interface DeviceSettingsTable {
   placement: Placement;
 }
 
+// ac_* の 3 テーブルは制御ツール auto-air-conditioner が所有し、goose の
+// マイグレーションで作られる。ダッシュボードは読み書きするだけで、テーブルは
+// 作らない（ddl/ac_*.sql は参照用に置いてあるだけで起動時には実行しない）。
+
+export interface AcControlRulesTable {
+  id: Generated<number>;
+  name: string;
+  ac_device_id: number;
+  sensor_device_id: number;
+  /** DDL に DEFAULT 1 があるので INSERT では省略できる */
+  enabled: Generated<number>;
+  /** 既定は NULL（一時停止していない）。INSERT では省略できる */
+  snooze_until: Generated<Date | null>;
+  default_target_temp: number;
+  default_humidity_max: number | null;
+  default_humidity_min: number | null;
+  /** DECIMAL 列。mysql2 は文字列で返すことがあるため両方を受ける */
+  temp_hysteresis: number | string;
+  humidity_hysteresis: number;
+  min_interval_min: number;
+  resend_interval_min: number;
+  sensor_max_age_min: number;
+  fan_speed: number;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface AcControlSchedulesTable {
+  id: Generated<number>;
+  rule_id: number;
+  start_minute: number;
+  end_minute: number;
+  target_temp: number;
+  humidity_max: number | null;
+  humidity_min: number | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface AcCommandLogsTable {
+  id: Generated<number>;
+  rule_id: number;
+  executed_at: Date;
+  power: 'on' | 'off';
+  mode: number;
+  target_temp: number;
+  fan_speed: number;
+  sensor_temp: number | string | null;
+  sensor_humidity: number | string | null;
+  reason: string;
+  result: 'success' | 'failure';
+  error_message: string | null;
+  created_at: Generated<Date>;
+}
+
 export interface Database {
   devices: DevicesTable;
   device_status_logs: DeviceStatusLogsTable;
   device_settings: DeviceSettingsTable;
+  ac_control_rules: AcControlRulesTable;
+  ac_control_schedules: AcControlSchedulesTable;
+  ac_command_logs: AcCommandLogsTable;
 }
 
 // Kysely の TB 型引数は「DB のキー」しか受け付けないため、`selectFrom('device_status_logs as l')`

@@ -5,9 +5,14 @@ import { fileURLToPath } from 'node:url';
 import closeWithGrace from 'close-with-grace';
 import 'dotenv/config';
 
+import { makeGetAcCommandLogs, makeListAcDevices } from './application/get-ac-command-logs.js';
+import { makeGetAcRules } from './application/get-ac-rules.js';
 import { makeGetSensorData } from './application/get-sensor-data.js';
+import { makeCreateAcRule, makeDeleteAcRule, makeUpdateAcRule } from './application/save-ac-rule.js';
+import { makeSetAcRuleEnabled, makeSnoozeAcRule } from './application/set-ac-rule-state.js';
 import { makeSetDevicePlacement } from './application/set-device-placement.js';
 import { loadConfig } from './config.js';
+import { createAcRuleRepository } from './infrastructure/db/ac-rule.repository.js';
 import { createDb } from './infrastructure/db/create-db.js';
 import { createDeviceRepository } from './infrastructure/db/device.repository.js';
 import { createSensorLogRepository } from './infrastructure/db/sensor-log.repository.js';
@@ -30,6 +35,7 @@ const { db, close: closeDb } = createDb(config.db);
 
 const deviceRepository = createDeviceRepository(db);
 const sensorLogRepository = createSensorLogRepository(db);
+const acRuleRepository = createAcRuleRepository(db);
 const totalsCache = createTotalsCache(config.totalsTtlMs);
 
 const app = createApp({
@@ -39,6 +45,16 @@ const app = createApp({
     totalsCache,
   }),
   setDevicePlacement: makeSetDevicePlacement({ devices: deviceRepository }),
+  ac: {
+    getAcRules: makeGetAcRules({ acRules: acRuleRepository }),
+    createAcRule: makeCreateAcRule({ acRules: acRuleRepository }),
+    updateAcRule: makeUpdateAcRule({ acRules: acRuleRepository }),
+    deleteAcRule: makeDeleteAcRule({ acRules: acRuleRepository }),
+    setAcRuleEnabled: makeSetAcRuleEnabled({ acRules: acRuleRepository }),
+    snoozeAcRule: makeSnoozeAcRule({ acRules: acRuleRepository }),
+    getAcCommandLogs: makeGetAcCommandLogs({ acRules: acRuleRepository }),
+    listAcDevices: makeListAcDevices({ acRules: acRuleRepository }),
+  },
   logger,
   // フロントエンドはまだ移行しておらず、ビルド後も public/ は dist/ 配下に
   // 生成されない。フロントエンド移行までは、リポジトリルート直下の

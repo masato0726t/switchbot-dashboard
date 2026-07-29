@@ -6,12 +6,15 @@ import type { Logger as PinoLogger } from 'pino';
 import type { makeGetSensorData } from '../application/get-sensor-data.js';
 import type { makeSetDevicePlacement } from '../application/set-device-placement.js';
 import { errorHandler } from './error-handler.js';
+import { acRouter, type AcRouterDeps } from './routes/ac.js';
 import { placementRouter } from './routes/placement.js';
 import { sensorDataRouter } from './routes/sensor-data.js';
 
 export interface AppDeps {
   readonly getSensorData: ReturnType<typeof makeGetSensorData>;
   readonly setDevicePlacement: ReturnType<typeof makeSetDevicePlacement>;
+  // エアコン制御はエンドポイントが 8 本あるため、依存をまとめて routes/ac.ts に渡す。
+  readonly ac: AcRouterDeps;
   // pino-http（HTTP アクセスログ用ミドルウェア）にそのまま渡すため、ここだけは
   // application/ports.ts の抽象な Logger ではなく pino の具体的な型を使う。
   // pino-http は 'pino' パッケージにしか依存しない（infrastructure 配下の
@@ -32,6 +35,7 @@ export function createApp(deps: AppDeps): Express {
 
   app.use('/api', sensorDataRouter(deps.getSensorData));
   app.use('/api', placementRouter(deps.setDevicePlacement));
+  app.use('/api', acRouter(deps.ac));
 
   app.use(errorHandler(deps.logger));
 

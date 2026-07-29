@@ -1,7 +1,9 @@
 // ユースケースが外界に求めることの一覧。実装は infrastructure が持ち、
 // application はこのインターフェースだけを見る。
 
+import type { AcRuleInput } from '../../shared/ac-contract.js';
 import type { RangeKey } from '../../shared/ranges.js';
+import type { AcCommandLog, AcDeviceOption, AcRule } from '../domain/ac-rule.js';
 import type { Placement } from '../domain/placement.js';
 import type { DeviceInfo, Reading } from '../domain/sensor.js';
 
@@ -22,6 +24,30 @@ export interface SensorLogRepository {
 export interface TotalsCache {
   get(): Map<number, number> | undefined;
   set(totals: Map<number, number>): void;
+}
+
+// エアコン自動制御の設定。テーブルの所有者は制御ツール auto-air-conditioner で、
+// ダッシュボードは読み書きするだけ（テーブルは作らない）。
+export interface AcRuleRepository {
+  /** 全ルールを、時間帯・最新コマンド・基準センサーの最新値付きで返す */
+  listRules(): Promise<AcRule[]>;
+  /** ルールを作成し、採番された id を返す。時間帯も一緒に保存する */
+  createRule(input: AcRuleInput): Promise<number>;
+  /** ルールを更新する。時間帯は全置換。対象が無ければ false を返す */
+  updateRule(id: number, input: AcRuleInput): Promise<boolean>;
+  /** ルールを削除する。対象が無ければ false を返す */
+  deleteRule(id: number): Promise<boolean>;
+  /** 自動制御の有効／無効を切り替える。対象が無ければ false を返す */
+  setEnabled(id: number, enabled: boolean): Promise<boolean>;
+  /**
+   * 一時停止の期限を設定する。until が null なら解除。
+   * 対象が無ければ false を返す
+   */
+  setSnoozeUntil(id: number, until: Date | null): Promise<boolean>;
+  /** 送信履歴を新しい順に返す */
+  listCommandLogs(id: number, limit: number): Promise<AcCommandLog[]>;
+  /** ルールで選べるエアコンとセンサーの候補を返す */
+  listDeviceOptions(): Promise<{ airConditioners: AcDeviceOption[]; sensors: AcDeviceOption[] }>;
 }
 
 // ロガーの型。application 層のポートなので、pino など具体的なロギング
