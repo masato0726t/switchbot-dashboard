@@ -63,6 +63,13 @@ export function createSensorLogRepository(db: Db): SensorLogRepository {
 
       const readings: Reading[] = [];
       for (const row of rows) {
+        // recorded_at が NULL の行を落とすのは旧実装からの意図的な変更。
+        // 旧 lib/transform.cjs にはこのガードが無く、new Date(null) で
+        // エポック0（1970/1/1）の点として出力していた。ORDER BY recorded_at
+        // ASC では NULL は先頭に並び、LTTB は最初の点を必ず残す仕様なので、
+        // 間引いても消えず range=all のグラフの横軸が1970年まで引き伸ばされ、
+        // 実データが右端に潰れて読めなくなる。旧挙動は表示上の不具合であり
+        // 引き継がない。
         if (row.device_id === null || row.recorded_at === null) continue;
         readings.push({
           deviceId: row.device_id,
