@@ -37,6 +37,27 @@ describe('toSensorDataResponse', () => {
     );
   });
 
+  test('time は toLocaleString と 1 文字も違わない（0 埋めの境界を含む）', () => {
+    // 高速化のために Intl.DateTimeFormat を使い回しているが、書式コンポーネントの
+    // 指定を 1 つ間違えるだけで「2026/07/29」「09:00:00」のように 0 埋めが変わり、
+    // レスポンスが壊れる。月・日・時・分・秒それぞれの 1 桁 / 2 桁の境界を突く。
+    const cases = [
+      Date.UTC(2026, 0, 1, 15, 4, 5),     // JST 2026/1/2 0:04:05  … 月日時が 1 桁
+      Date.UTC(2026, 6, 28, 15, 0, 0),    // JST 2026/7/29 0:00:00 … 分秒が 0
+      Date.UTC(2026, 11, 31, 14, 59, 59), // JST 2026/12/31 23:59:59 … すべて 2 桁
+      Date.UTC(2026, 9, 9, 0, 9, 9),      // JST 2026/10/9 9:09:09 … 混在
+      0,                                   // JST 1970/1/1 9:00:00  … エポック
+    ];
+    for (const ts of cases) {
+      const [dto] = toSensorDataResponse([series({
+        points: [{ ts, temperature: 1, humidity: 1 }],
+      })]);
+      expect(dto!.data[0]!.time).toBe(
+        new Date(ts).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }),
+      );
+    }
+  });
+
   test('点のキー順は ts, time, temperature, humidity, battery, co2', () => {
     const [dto] = toSensorDataResponse([series({
       points: [{ ts: TS, temperature: 24.9, humidity: 55, battery: 88, co2: 718 }],
