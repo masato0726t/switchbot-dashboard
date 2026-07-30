@@ -149,6 +149,9 @@ const selectedIsAirConditioner = computed(() => {
         <span class="hint">
           目標温度が前提とする湿度です。その部屋のふだんの湿度に合わせてください。ここから離れるほど目標が補正されます。
         </span>
+        <span v-if="baseHumidityTooHigh" class="hint warning-text">
+          基準湿度が湿度上限に近すぎます。基準の状態が常にドライ運転の条件を満たします。
+        </span>
       </label>
 
       <label>
@@ -162,9 +165,6 @@ const selectedIsAirConditioner = computed(() => {
           @input="onNumber('comfort_adjust_max', $event)"
         >℃
         <span class="hint">湿度で目標をずらす幅の上限です。0 にすると湿度を見ません。</span>
-        <span v-if="baseHumidityTooHigh" class="hint warning-text">
-          基準湿度が湿度上限に近すぎます。基準の状態が常にドライ運転の条件を満たします。
-        </span>
       </label>
 
       <label>

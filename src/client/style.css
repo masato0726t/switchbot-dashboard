@@ -135,7 +135,8 @@ button.danger:hover:not(:disabled) { border-color: var(--danger); color: var(--d
   gap: 1rem;
 }
 
-.rule-form > fieldset {
+/* 時間帯別の目標値（.schedules）は行単位の一覧なので、2 列 grid から除外する。 */
+.rule-form > fieldset:not(.schedules) {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
   gap: 0.9rem 1.5rem;
@@ -164,8 +165,9 @@ button.danger:hover:not(:disabled) { border-color: var(--danger); color: var(--d
   font-size: 0.9rem;
 }
 
-/* 許可する運転のチェックは横並び。上の縦並びを打ち消す。 */
+/* 許可する運転はチェックと文言を横並びに揃える。 */
 .modes .inline {
+  display: flex;
   flex-direction: row;
   align-items: center;
   gap: 0.3rem;
@@ -179,9 +181,7 @@ input[type="text"], input[type="number"], input[type="time"], select {
   max-width: 14rem;
 }
 
-/* 時間帯別の目標値は行単位の一覧なので、上の fieldset 用 2 列 grid には乗せない。 */
-.rule-form > .schedules {
-  display: block;
+.schedules {
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 0.9rem;
