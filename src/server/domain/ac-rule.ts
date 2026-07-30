@@ -46,7 +46,12 @@ export interface AcRule {
   minIntervalMin: number;
   resendIntervalMin: number;
   sensorMaxAgeMin: number;
-  fanSpeed: number;
+  fanSpeed: number | null;
+  baseHumidity: number;
+  comfortAdjustMax: number;
+  setpointOffset: number;
+  fanBoostThreshold: number;
+  allowedModes: number;
   schedules: AcSchedule[];
   lastCommand: AcLastCommand | null;
   reading: AcReading | null;

@@ -47,7 +47,14 @@ export interface AcControlRulesTable {
   min_interval_min: number;
   resend_interval_min: number;
   sensor_max_age_min: number;
-  fan_speed: number;
+  /** NULL は「偏差から自動判別」を意味する */
+  fan_speed: number | null;
+  base_humidity: number;
+  /** DECIMAL 列。mysql2 は文字列で返すことがあるため両方を受ける */
+  comfort_adjust_max: number | string;
+  setpoint_offset: number | string;
+  fan_boost_threshold: number | string;
+  allowed_modes: number;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }

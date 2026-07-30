@@ -1,6 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import { CompiledQuery, sql } from 'kysely';
+import type { AcRuleInput } from '../../../shared/ac-contract.js';
 import { applySettingsDdl } from '../ddl-runner.js';
+import { createAcRuleRepository } from './ac-rule.repository.js';
 import { createDeviceRepository } from './device.repository.js';
 import { hasSensorReading } from './filters.js';
 import { createSensorLogRepository } from './sensor-log.repository.js';
@@ -193,6 +195,86 @@ describe('SensorLogRepository', () => {
 
     const indexes = await sql<{ Key_name: string }>`SHOW INDEX FROM device_status_logs`.execute(mysql.db);
     expect(indexes.rows.some((r) => r.Key_name === 'idx_recorded_at')).toBe(true);
+  });
+});
+
+describe('AcRuleRepository', () => {
+  // すべての列で DB の既定値と異なる値を使う。書き込みの写しを 1 列でも
+  // 忘れると DDL の DEFAULT が入って読み出しと食い違うので、往復の一致だけで
+  // 「書き込み・読み出しの両方に列がある」ことまで確かめられる。
+  function ruleInput(overrides: Partial<AcRuleInput> = {}): AcRuleInput {
+    return {
+      name: 'リビング',
+      ac_device_id: 3,
+      sensor_device_id: 1,
+      default_target_temp: 24,
+      default_humidity_max: 60,
+      default_humidity_min: 40,
+      temp_hysteresis: 1.5,
+      humidity_hysteresis: 6,
+      min_interval_min: 15,
+      resend_interval_min: 90,
+      sensor_max_age_min: 30,
+      fan_speed: 2,
+      base_humidity: 55,
+      comfort_adjust_max: 1.0,
+      setpoint_offset: 2.5,
+      fan_boost_threshold: 1.5,
+      // 全許可の 7 は「写し忘れでゼロ値＝全許可扱い」になった場合と挙動で
+      // 区別がつかない。冷房＋暖房の 5 でゼロ値とも既定値とも区別する。
+      allowed_modes: 5,
+      schedules: [],
+      ...overrides,
+    };
+  }
+
+  test('体感ベース制御の 5 列と fan_speed が作成 → 取得で往復する', async () => {
+    const repo = createAcRuleRepository(mysql.db);
+    const id = await repo.createRule(ruleInput());
+
+    const rule = (await repo.listRules()).find((r) => r.id === id);
+    expect(rule).toMatchObject({
+      fanSpeed: 2,
+      baseHumidity: 55,
+      comfortAdjustMax: 1.0,
+      setpointOffset: 2.5,
+      fanBoostThreshold: 1.5,
+      allowedModes: 5,
+    });
+  });
+
+  test('fan_speed の NULL（偏差から自動判別）が往復する', async () => {
+    const repo = createAcRuleRepository(mysql.db);
+    const id = await repo.createRule(ruleInput({ fan_speed: null }));
+
+    const rule = (await repo.listRules()).find((r) => r.id === id);
+    // DDL の DEFAULT 1 に化けず、NULL のまま返ること。
+    expect(rule?.fanSpeed).toBeNull();
+  });
+
+  test('更新でも 5 列が書き込まれ、読み出しと一致する', async () => {
+    const repo = createAcRuleRepository(mysql.db);
+    const id = await repo.createRule(ruleInput());
+
+    const updated = await repo.updateRule(id, ruleInput({
+      base_humidity: 45,
+      comfort_adjust_max: 0.5,
+      setpoint_offset: 3.0,
+      fan_boost_threshold: 2.5,
+      allowed_modes: 6,   // ドライ＋暖房。作成時の 5 とも全許可の 7 とも違う値
+      fan_speed: null,
+    }));
+    expect(updated).toBe(true);
+
+    const rule = (await repo.listRules()).find((r) => r.id === id);
+    expect(rule).toMatchObject({
+      fanSpeed: null,
+      baseHumidity: 45,
+      comfortAdjustMax: 0.5,
+      setpointOffset: 3.0,
+      fanBoostThreshold: 2.5,
+      allowedModes: 6,
+    });
   });
 });
 

@@ -41,8 +41,13 @@ export async function startMysql(): Promise<TestMysql> {
     poolLimit: 5,
   });
 
-  // 外部キーの依存順に適用する（api_accounts → devices → device_status_logs）。
-  for (const file of ['api_accounts.sql', 'devices.sql', 'device_status_logs.sql', 'device_settings.sql']) {
+  // 外部キーの依存順に適用する（api_accounts → devices → device_status_logs、
+  // ac_control_rules → その子テーブル）。ac_*.sql は本番では制御ツールが作る
+  // 参照用の写しだが、テストでは実物と同じスキーマに対して検証したいので適用する。
+  for (const file of [
+    'api_accounts.sql', 'devices.sql', 'device_status_logs.sql', 'device_settings.sql',
+    'ac_control_rules.sql', 'ac_control_schedules.sql', 'ac_command_logs.sql',
+  ]) {
     await sql.raw(await readFile(`${DDL_DIR}${file}`, 'utf8')).execute(db);
   }
 
@@ -75,7 +80,11 @@ export async function startMysql(): Promise<TestMysql> {
     async truncate() {
       // 外部キーがあるので TRUNCATE は使えない（子行が無くても拒否される）。
       // 子 → 親の順に DELETE し、AUTO_INCREMENT は使わないので採番は戻さない。
-      for (const table of ['device_status_logs', 'device_settings', 'devices'] as const) {
+      // ac_control_rules は devices を参照するため devices より先に消す。
+      for (const table of [
+        'ac_command_logs', 'ac_control_schedules', 'ac_control_rules',
+        'device_status_logs', 'device_settings', 'devices',
+      ] as const) {
         await sql.raw(`DELETE FROM ${table}`).execute(db);
       }
     },
