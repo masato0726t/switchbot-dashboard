@@ -61,6 +61,11 @@ function validRuleBody(overrides: Record<string, unknown> = {}) {
     resend_interval_min: 60,
     sensor_max_age_min: 20,
     fan_speed: 1,
+    base_humidity: 50,
+    comfort_adjust_max: 1.5,
+    setpoint_offset: 2,
+    fan_boost_threshold: 2,
+    allowed_modes: 7,
     schedules: [],
     ...overrides,
   };

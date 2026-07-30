@@ -9,11 +9,16 @@ import { findScheduleOverlaps, MINUTES_PER_DAY } from './ac-schedule.js';
 const {
   targetTempMin, targetTempMax,
   humidityMin, humidityMax,
-  tempHysteresisMin, tempHysteresisMax, tempHysteresisStep,
+  tempHysteresisMin, tempHysteresisMax, decimalStep,
   humidityHysteresisMin, humidityHysteresisMax,
   minIntervalMin, minIntervalMax,
   resendIntervalMin, resendIntervalMax,
   sensorMaxAgeMin, sensorMaxAgeMax,
+  baseHumidityMin, baseHumidityMax,
+  comfortAdjustMaxMin, comfortAdjustMaxMax,
+  setpointOffsetMin, setpointOffsetMax,
+  fanBoostThresholdMin, fanBoostThresholdMax,
+  allowedModesMin, allowedModesMax,
   snoozeHoursMax,
 } = AC_LIMITS;
 
@@ -29,6 +34,17 @@ const HumiditySchema = z.number().int().min(humidityMin).max(humidityMax);
 const MinuteSchema = z.number().int().min(0).max(MINUTES_PER_DAY - 1);
 
 const FanSpeedSchema = z.number().int().min(1).max(4);
+
+/** 0.5 刻みの℃を受ける。制御ツールが送信前に整数へ丸めるので、細かすぎる値を許さない。 */
+function halfStep(min: number, max: number, label: string) {
+  return z
+    .number()
+    .min(min)
+    .max(max)
+    .refine((v) => Number.isInteger(v / decimalStep), {
+      message: `${label}は ${decimalStep} 刻みで指定してください`,
+    });
+}
 
 /**
  * 湿度の下限と上限の整合。下限は制御には使わず、ダッシュボードが警告を出す
@@ -77,13 +93,7 @@ export const AcRuleInputSchema = z
     default_target_temp: TargetTempSchema,
     default_humidity_max: HumiditySchema.nullable(),
     default_humidity_min: HumiditySchema.nullable(),
-    temp_hysteresis: z
-      .number()
-      .min(tempHysteresisMin)
-      .max(tempHysteresisMax)
-      .refine((v) => Number.isInteger(v / tempHysteresisStep), {
-        message: `温度の許容幅は ${tempHysteresisStep} 刻みで指定してください`,
-      }),
+    temp_hysteresis: halfStep(tempHysteresisMin, tempHysteresisMax, '温度の許容幅'),
     humidity_hysteresis: z.number().int().min(humidityHysteresisMin).max(humidityHysteresisMax),
     min_interval_min: z.number().int().min(minIntervalMin).max(minIntervalMax),
     // 0 は「再送しない」を意味する特別な値なので、範囲の下限とは別枠で許す。
@@ -94,7 +104,18 @@ export const AcRuleInputSchema = z
         message: `再送間隔は 0（再送しない）または ${resendIntervalMin}〜${resendIntervalMax} 分で指定してください`,
       }),
     sensor_max_age_min: z.number().int().min(sensorMaxAgeMin).max(sensorMaxAgeMax),
-    fan_speed: FanSpeedSchema,
+    fan_speed: FanSpeedSchema.nullable(),
+    base_humidity: z.number().int().min(baseHumidityMin).max(baseHumidityMax),
+    comfort_adjust_max: halfStep(comfortAdjustMaxMin, comfortAdjustMaxMax, '補正の上限'),
+    setpoint_offset: halfStep(setpointOffsetMin, setpointOffsetMax, '設定温度のオフセット'),
+    fan_boost_threshold: halfStep(fanBoostThresholdMin, fanBoostThresholdMax, '強風の閾値'),
+    // 0 は制御ツールが「未設定＝全許可」として扱う。全部止めるつもりの 0 が
+    // 全許可になるのを避けるため、ここで弾いて enabled へ誘導する。
+    allowed_modes: z
+      .number()
+      .int()
+      .min(allowedModesMin, '運転を少なくとも 1 つ許可してください。すべて止めるなら自動制御を無効にしてください')
+      .max(allowedModesMax),
     schedules: z.array(AcScheduleSchema),
   })
   .superRefine((value, ctx) => {
@@ -149,7 +170,12 @@ export const AcRuleSchema = z.object({
   min_interval_min: z.number().int(),
   resend_interval_min: z.number().int(),
   sensor_max_age_min: z.number().int(),
-  fan_speed: z.number().int(),
+  fan_speed: z.number().int().nullable(),
+  base_humidity: z.number().int(),
+  comfort_adjust_max: z.number(),
+  setpoint_offset: z.number(),
+  fan_boost_threshold: z.number(),
+  allowed_modes: z.number().int(),
   schedules: z.array(
     z.object({
       id: z.number().int(),
