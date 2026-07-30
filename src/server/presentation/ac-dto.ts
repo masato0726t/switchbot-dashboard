@@ -30,6 +30,11 @@ export function toAcRuleDto(view: AcRuleView): AcRuleDto {
     resend_interval_min: rule.resendIntervalMin,
     sensor_max_age_min: rule.sensorMaxAgeMin,
     fan_speed: rule.fanSpeed,
+    base_humidity: rule.baseHumidity,
+    comfort_adjust_max: rule.comfortAdjustMax,
+    setpoint_offset: rule.setpointOffset,
+    fan_boost_threshold: rule.fanBoostThreshold,
+    allowed_modes: rule.allowedModes,
     schedules: rule.schedules.map((s) => ({
       id: s.id,
       start_minute: s.startMinute,

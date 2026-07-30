@@ -45,6 +45,8 @@ export function createAcRuleRepository(db: Db): AcRuleRepository {
         'r.default_target_temp', 'r.default_humidity_max', 'r.default_humidity_min',
         'r.temp_hysteresis', 'r.humidity_hysteresis',
         'r.min_interval_min', 'r.resend_interval_min', 'r.sensor_max_age_min', 'r.fan_speed',
+        'r.base_humidity', 'r.comfort_adjust_max', 'r.setpoint_offset',
+        'r.fan_boost_threshold', 'r.allowed_modes',
         'ac.device_name as ac_device_name',
         'sensor.device_name as sensor_device_name',
       ])
@@ -184,6 +186,11 @@ export function createAcRuleRepository(db: Db): AcRuleRepository {
       resend_interval_min: input.resend_interval_min,
       sensor_max_age_min: input.sensor_max_age_min,
       fan_speed: input.fan_speed,
+      base_humidity: input.base_humidity,
+      comfort_adjust_max: input.comfort_adjust_max,
+      setpoint_offset: input.setpoint_offset,
+      fan_boost_threshold: input.fan_boost_threshold,
+      allowed_modes: input.allowed_modes,
     };
   }
 
@@ -219,6 +226,11 @@ export function createAcRuleRepository(db: Db): AcRuleRepository {
         resendIntervalMin: row.resend_interval_min,
         sensorMaxAgeMin: row.sensor_max_age_min,
         fanSpeed: row.fan_speed,
+        baseHumidity: row.base_humidity,
+        comfortAdjustMax: toNumber(row.comfort_adjust_max),
+        setpointOffset: toNumber(row.setpoint_offset),
+        fanBoostThreshold: toNumber(row.fan_boost_threshold),
+        allowedModes: row.allowed_modes,
         schedules: schedules.get(row.id) ?? [],
         lastCommand: lastCommands.get(row.id) ?? null,
         reading: readings.get(row.sensor_device_id) ?? null,

@@ -128,14 +128,50 @@ button.danger:hover:not(:disabled) { border-color: var(--danger); color: var(--d
 
 .editor { border-top: 1px solid var(--border); margin-top: 1rem; padding-top: 1rem; }
 
-/* 設定フォームは 2 列。狭い画面では 1 列へ折り返す。 */
+/* 設定フォームは群ごとに囲む。中身は 2 列で、狭い画面では 1 列へ折り返す。 */
 .rule-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* 時間帯別の目標値（.schedules）は行単位の一覧なので、2 列 grid から除外する。 */
+.rule-form > fieldset:not(.schedules) {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
   gap: 0.9rem 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.9rem 1rem 1rem;
 }
 
-.rule-form > label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.9rem; }
+.rule-form > fieldset > legend {
+  padding: 0 0.4rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+/* 群の説明は列をまたいで先頭に置く。 */
+.rule-form > fieldset > .hint {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.rule-form > fieldset > label,
+.rule-form > fieldset > .modes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.9rem;
+}
+
+/* 許可する運転はチェックと文言を横並びに揃える。 */
+.modes .inline {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.3rem;
+}
 
 input[type="text"], input[type="number"], input[type="time"], select {
   padding: 0.35rem 0.5rem;
@@ -146,7 +182,6 @@ input[type="text"], input[type="number"], input[type="time"], select {
 }
 
 .schedules {
-  grid-column: 1 / -1;
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 0.9rem;

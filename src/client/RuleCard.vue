@@ -41,6 +41,11 @@ function toInput(rule: AcRuleDto): AcRuleInput {
     resend_interval_min: rule.resend_interval_min,
     sensor_max_age_min: rule.sensor_max_age_min,
     fan_speed: rule.fan_speed,
+    base_humidity: rule.base_humidity,
+    comfort_adjust_max: rule.comfort_adjust_max,
+    setpoint_offset: rule.setpoint_offset,
+    fan_boost_threshold: rule.fan_boost_threshold,
+    allowed_modes: rule.allowed_modes,
     schedules: rule.schedules.map((s) => ({
       start_minute: s.start_minute,
       end_minute: s.end_minute,

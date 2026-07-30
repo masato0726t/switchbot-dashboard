@@ -16,6 +16,11 @@ function validRule(overrides: Record<string, unknown> = {}) {
     resend_interval_min: 60,
     sensor_max_age_min: 20,
     fan_speed: 1,
+    base_humidity: 50,
+    comfort_adjust_max: 1.5,
+    setpoint_offset: 2,
+    fan_boost_threshold: 2,
+    allowed_modes: 7,
     schedules: [],
     ...overrides,
   };
@@ -167,5 +172,56 @@ describe('AcSnoozeRequestSchema', () => {
   it('範囲外は拒否する', () => {
     expect(AcSnoozeRequestSchema.safeParse({ hours: -1 }).success).toBe(false);
     expect(AcSnoozeRequestSchema.safeParse({ hours: 25 }).success).toBe(false);
+  });
+});
+
+describe('AcRuleInputSchema の体感ベース制御の設定', () => {
+  // ゼロ値は制御ツールが「全許可」として扱う。全部止めるつもりで 0 を
+  // 保存すると全部動く。ここで弾く。弾くだけでは利用者が行き先を失うので、
+  // メッセージが「自動制御を無効に」へ誘導していることまで検証する。
+  it('許可する運転が 0 なら弾き、自動制御の無効化へ誘導する', () => {
+    const result = AcRuleInputSchema.safeParse(validRule({ allowed_modes: 0 }));
+    expect(result.success).toBe(false);
+    expect(errorsOf(validRule({ allowed_modes: 0 }))).toContain(
+      '運転を少なくとも 1 つ許可してください。すべて止めるなら自動制御を無効にしてください',
+    );
+  });
+
+  it('許可する運転は 1 から 7 まで通る', () => {
+    for (const value of [1, 3, 6, 7]) {
+      expect(AcRuleInputSchema.safeParse(validRule({ allowed_modes: value })).success).toBe(true);
+    }
+  });
+
+  it('許可する運転が 8 以上なら弾く', () => {
+    expect(AcRuleInputSchema.safeParse(validRule({ allowed_modes: 8 })).success).toBe(false);
+  });
+
+  // NULL は「偏差から自動判別」を意味する。
+  it('風量が null なら通る', () => {
+    expect(AcRuleInputSchema.safeParse(validRule({ fan_speed: null })).success).toBe(true);
+  });
+
+  it('基準湿度は 1 から 99 まで', () => {
+    expect(AcRuleInputSchema.safeParse(validRule({ base_humidity: 1 })).success).toBe(true);
+    expect(AcRuleInputSchema.safeParse(validRule({ base_humidity: 99 })).success).toBe(true);
+    expect(AcRuleInputSchema.safeParse(validRule({ base_humidity: 0 })).success).toBe(false);
+    expect(AcRuleInputSchema.safeParse(validRule({ base_humidity: 100 })).success).toBe(false);
+  });
+
+  it('小数の設定は 0.5 刻みでなければ弾く', () => {
+    expect(AcRuleInputSchema.safeParse(validRule({ comfort_adjust_max: 1.2 })).success).toBe(false);
+    expect(AcRuleInputSchema.safeParse(validRule({ setpoint_offset: 2.3 })).success).toBe(false);
+    expect(AcRuleInputSchema.safeParse(validRule({ fan_boost_threshold: 1.7 })).success).toBe(false);
+  });
+
+  it('補正上限とオフセットは 0 を許す', () => {
+    expect(AcRuleInputSchema.safeParse(validRule({ comfort_adjust_max: 0 })).success).toBe(true);
+    expect(AcRuleInputSchema.safeParse(validRule({ setpoint_offset: 0 })).success).toBe(true);
+  });
+
+  // 制御ツールは 0（常に強）も受け付けるが、UI から縮退設定を勧める理由がない。
+  it('強風閾値の 0 は弾く', () => {
+    expect(AcRuleInputSchema.safeParse(validRule({ fan_boost_threshold: 0 })).success).toBe(false);
   });
 });
