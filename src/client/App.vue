@@ -5,6 +5,7 @@
 // その設定を預かって表示するだけ。保存してもすぐには操作されず、次に制御ツールが
 // 動いたとき（5 分ごと）に反映される。
 import { computed, onMounted, ref } from 'vue';
+import { AC_RULE_DEFAULTS } from '../shared/air-conditioner.js';
 import type { AcCommandLogDto, AcDevicesResponse, AcRuleDto, AcRuleInput } from '../shared/ac-contract.js';
 import * as api from './api.js';
 import RuleCard from './RuleCard.vue';
@@ -28,15 +29,7 @@ function newRuleInput(): AcRuleInput {
     name: 'リビング',
     ac_device_id: devices.value.air_conditioners[0]?.id ?? 0,
     sensor_device_id: devices.value.sensors[0]?.id ?? 0,
-    default_target_temp: 25,
-    default_humidity_max: 60,
-    default_humidity_min: 40,
-    temp_hysteresis: 1,
-    humidity_hysteresis: 5,
-    min_interval_min: 10,
-    resend_interval_min: 60,
-    sensor_max_age_min: 20,
-    fan_speed: 1,
+    ...AC_RULE_DEFAULTS,
     schedules: [],
   };
 }

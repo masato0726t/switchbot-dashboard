@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isBaseHumidityTooHigh, isFanLowUnreachable } from './air-conditioner.js';
+import { AC_RULE_DEFAULTS, isBaseHumidityTooHigh, isFanLowUnreachable } from './air-conditioner.js';
 
 describe('isFanLowUnreachable', () => {
   // 冷暖の運転開始には偏差が許容幅を超える必要があり、中に上がる閾値は
@@ -48,10 +48,23 @@ describe('isBaseHumidityTooHigh', () => {
 
 describe('新規ルールの既定値', () => {
   // 既定で警告が出る状態は、警告を読み飛ばす癖をつけるので避ける。
-  // 既定は 目標25 / 基準湿度50 / 補正上限1.5 / 許容幅1.0 / 湿度上限60 /
-  // 湿度許容幅5 / 強風閾値2.0 / 風量1（エアコンにまかせる）。
+  // 値は画面の初期値と同じ AC_RULE_DEFAULTS から取る。リテラルで持つと、
+  // 画面の既定だけ変えてもこのテストが緑のままになり主張が空洞化する。
   it('どちらの警告も出ない', () => {
-    expect(isFanLowUnreachable(1, 2.0, 1.0)).toBe(false);
-    expect(isBaseHumidityTooHigh(1.5, 50, 60, 5)).toBe(false);
+    expect(
+      isFanLowUnreachable(
+        AC_RULE_DEFAULTS.fan_speed,
+        AC_RULE_DEFAULTS.fan_boost_threshold,
+        AC_RULE_DEFAULTS.temp_hysteresis,
+      ),
+    ).toBe(false);
+    expect(
+      isBaseHumidityTooHigh(
+        AC_RULE_DEFAULTS.comfort_adjust_max,
+        AC_RULE_DEFAULTS.base_humidity,
+        AC_RULE_DEFAULTS.default_humidity_max,
+        AC_RULE_DEFAULTS.humidity_hysteresis,
+      ),
+    ).toBe(false);
   });
 });

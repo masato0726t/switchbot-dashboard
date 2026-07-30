@@ -90,6 +90,32 @@ export const AC_LIMITS = {
 } as const;
 
 /**
+ * 新規ルールの既定値。
+ *
+ * 画面の初期値とテストの前提を 1 か所に集める。別々に書くと、片方だけ変えても
+ * テストが通り続け「既定では警告が出ない」という主張が空洞化する。
+ *
+ * 制御ツール側の DDL の既定値と揃えてある。fan_speed は 1（エアコンにまかせる）で、
+ * 風量の自動判別はオプトインという方針を崩さない。
+ */
+export const AC_RULE_DEFAULTS = {
+  default_target_temp: 25,
+  default_humidity_max: 60,
+  default_humidity_min: 40,
+  temp_hysteresis: 1,
+  humidity_hysteresis: 5,
+  min_interval_min: 10,
+  resend_interval_min: 60,
+  sensor_max_age_min: 20,
+  fan_speed: 1,
+  base_humidity: 50,
+  comfort_adjust_max: 1.5,
+  setpoint_offset: 2,
+  fan_boost_threshold: 2,
+  allowed_modes: ALL_MODES,
+} as const;
+
+/**
  * エアコンとして認識できる赤外線リモコンの種別。
  *
  * 学習リモコンとして自分で登録したものは "DIY Air Conditioner" になるため
