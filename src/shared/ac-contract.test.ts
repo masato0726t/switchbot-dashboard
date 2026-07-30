@@ -177,10 +177,14 @@ describe('AcSnoozeRequestSchema', () => {
 
 describe('AcRuleInputSchema の体感ベース制御の設定', () => {
   // ゼロ値は制御ツールが「全許可」として扱う。全部止めるつもりで 0 を
-  // 保存すると全部動く。ここで弾く。
-  it('許可する運転が 0 なら弾く', () => {
+  // 保存すると全部動く。ここで弾く。弾くだけでは利用者が行き先を失うので、
+  // メッセージが「自動制御を無効に」へ誘導していることまで検証する。
+  it('許可する運転が 0 なら弾き、自動制御の無効化へ誘導する', () => {
     const result = AcRuleInputSchema.safeParse(validRule({ allowed_modes: 0 }));
     expect(result.success).toBe(false);
+    expect(errorsOf(validRule({ allowed_modes: 0 }))).toContain(
+      '運転を少なくとも 1 つ許可してください。すべて止めるなら自動制御を無効にしてください',
+    );
   });
 
   it('許可する運転は 1 から 7 まで通る', () => {

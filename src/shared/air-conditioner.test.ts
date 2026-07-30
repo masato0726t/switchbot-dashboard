@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { AC_RULE_DEFAULTS, isBaseHumidityTooHigh, isFanLowUnreachable } from './air-conditioner.js';
+import {
+  AC_RULE_DEFAULTS, ALL_MODES, MODE_BITS, isBaseHumidityTooHigh, isFanLowUnreachable,
+} from './air-conditioner.js';
 
 describe('isFanLowUnreachable', () => {
   // 冷暖の運転開始には偏差が許容幅を超える必要があり、中に上がる閾値は
@@ -28,21 +30,31 @@ describe('isBaseHumidityTooHigh', () => {
   // 基準湿度が「湿度上限 − 許容幅」以上だと、基準の状態が常にドライの
   // 継続条件を満たす。基準を部屋のふだんの湿度に合わせる運用での誤設定。
   it('基準湿度が湿度上限から許容幅を引いた値以上なら警告する', () => {
-    expect(isBaseHumidityTooHigh(1.5, 55, 60, 5)).toBe(true);
+    expect(isBaseHumidityTooHigh(1.5, 55, 60, 5, ALL_MODES)).toBe(true);
   });
 
   it('境界の内側なら警告しない', () => {
-    expect(isBaseHumidityTooHigh(1.5, 54, 60, 5)).toBe(false);
+    expect(isBaseHumidityTooHigh(1.5, 54, 60, 5, ALL_MODES)).toBe(false);
   });
 
   // 補正上限が 0 なら基準湿度は参照されない。
   it('補正しない設定なら警告しない', () => {
-    expect(isBaseHumidityTooHigh(0, 55, 60, 5)).toBe(false);
+    expect(isBaseHumidityTooHigh(0, 55, 60, 5, ALL_MODES)).toBe(false);
   });
 
   // 湿度上限が未設定ならドライは動かない。
   it('湿度上限が未設定なら警告しない', () => {
-    expect(isBaseHumidityTooHigh(1.5, 55, null, 5)).toBe(false);
+    expect(isBaseHumidityTooHigh(1.5, 55, null, 5, ALL_MODES)).toBe(false);
+  });
+
+  // ドライを許可から外していればドライは動かない。「常にドライ運転の条件を
+  // 満たします」という警告文が成立しないので出さない。
+  it('ドライを許可していなければ警告しない', () => {
+    expect(isBaseHumidityTooHigh(1.5, 55, 60, 5, MODE_BITS.cool | MODE_BITS.heat)).toBe(false);
+  });
+
+  it('ドライだけ許可していても警告する', () => {
+    expect(isBaseHumidityTooHigh(1.5, 55, 60, 5, MODE_BITS.dry)).toBe(true);
   });
 });
 
@@ -64,6 +76,7 @@ describe('新規ルールの既定値', () => {
         AC_RULE_DEFAULTS.base_humidity,
         AC_RULE_DEFAULTS.default_humidity_max,
         AC_RULE_DEFAULTS.humidity_hysteresis,
+        AC_RULE_DEFAULTS.allowed_modes,
       ),
     ).toBe(false);
   });

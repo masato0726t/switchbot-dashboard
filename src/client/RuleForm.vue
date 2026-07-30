@@ -60,6 +60,7 @@ const baseHumidityTooHigh = computed(() =>
     input.value.base_humidity,
     input.value.default_humidity_max,
     input.value.humidity_hysteresis,
+    input.value.allowed_modes,
   ),
 );
 

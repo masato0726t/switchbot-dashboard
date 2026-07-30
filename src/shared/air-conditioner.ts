@@ -156,14 +156,17 @@ export function isFanLowUnreachable(
  *
  * 基準湿度は「その部屋のふだんの湿度」に合わせる設定だが、湿度上限に近づけると
  * 補正が効いている状態が常にドライの継続条件（湿度 > 上限 − 許容幅）に入る。
- * 補正しない設定や、湿度上限が未設定でドライが動かない場合は警告しない。
+ * 補正しない設定、湿度上限が未設定、ドライが許可されていない、のいずれかで
+ * ドライは動かないので警告しない。
  */
 export function isBaseHumidityTooHigh(
   comfortAdjustMax: number,
   baseHumidity: number,
   humidityMax: number | null,
   humidityHysteresis: number,
+  allowedModes: number,
 ): boolean {
   if (comfortAdjustMax <= 0 || humidityMax === null) return false;
+  if ((allowedModes & MODE_BITS.dry) === 0) return false;
   return baseHumidity >= humidityMax - humidityHysteresis;
 }
