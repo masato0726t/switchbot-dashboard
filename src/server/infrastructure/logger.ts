@@ -12,6 +12,14 @@ export function createLogger(level: string, pretty: boolean): Logger {
   return pino({
     level,
     timestamp: UNDER_PM2 ? false : pino.stdTimeFunctions.isoTime,
+    // --- ログ規約v1（2026-08-13）: 自作アプリ横断で level 表記を揃える ---
+    // pino の既定は数値（30/40/50）。Go の slog / zap が出す "INFO"/"ERROR" に
+    // 合わせないと、集約基盤で level 横断の絞り込みからこのアプリだけ漏れる。
+    formatters: {
+      level: (label) => ({ level: label.toUpperCase() }),
+    },
+    // host / pid は journald が付けるのでアプリ側では出さない。
+    base: { service: 'switchbot-dashboard' },
     ...(pretty
       ? { transport: { target: 'pino-pretty', options: { translateTime: 'SYS:standard' } } }
       : {}),
