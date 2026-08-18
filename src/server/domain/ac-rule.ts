@@ -36,6 +36,12 @@ export interface AcRule {
   acDeviceName: string | null;
   sensorDeviceId: number;
   sensorDeviceName: string | null;
+  /** 外気温センサー。紐づけていなければ null で、外気温を見ない。 */
+  outdoorSensorDeviceId: number | null;
+  outdoorSensorDeviceName: string | null;
+  dryOutdoorTempMin: number;
+  dryOutdoorTempMax: number;
+  dryHumidityMargin: number;
   enabled: boolean;
   snoozeUntil: Date | null;
   defaultTargetTemp: number;
@@ -55,6 +61,8 @@ export interface AcRule {
   schedules: AcSchedule[];
   lastCommand: AcLastCommand | null;
   reading: AcReading | null;
+  /** 外気温センサーの最新値。紐づけていない・値が無ければ null。 */
+  outdoorReading: AcReading | null;
 }
 
 export interface AcCommandLog {
@@ -66,6 +74,7 @@ export interface AcCommandLog {
   fanSpeed: number;
   sensorTemp: number | null;
   sensorHumidity: number | null;
+  outdoorTemp: number | null;
   reason: string;
   result: 'success' | 'failure';
   errorMessage: string | null;

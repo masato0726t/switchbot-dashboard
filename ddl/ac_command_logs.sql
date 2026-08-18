@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS ac_command_logs (
     fan_speed       TINYINT      NOT NULL COMMENT '送った風量',
     sensor_temp     DECIMAL(4,1) NULL COMMENT '判定時の室温',
     sensor_humidity DECIMAL(4,1) NULL COMMENT '判定時の湿度',
+    outdoor_temp    DECIMAL(4,1) NULL COMMENT '判定時の外気温(℃)',
     reason          VARCHAR(255) NOT NULL COMMENT '送信理由',
     result          ENUM('success','failure') NOT NULL COMMENT 'API呼び出しの結果',
     error_message   TEXT         NULL COMMENT '失敗時のメッセージ',

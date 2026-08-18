@@ -76,6 +76,12 @@ export const AC_LIMITS = {
   fanBoostThresholdMax: 5,
   allowedModesMin: 1,
   allowedModesMax: ALL_MODES,
+  /** ドライを優先する外気温の範囲。宅内で現実的に取り得る値に収める。 */
+  outdoorTempMin: -20,
+  outdoorTempMax: 50,
+  /** ドライ優先中に湿度上限を下げる幅(%)。0 は「下げない＝従来どおり」。 */
+  dryHumidityMarginMin: 0,
+  dryHumidityMarginMax: 20,
   humidityHysteresisMin: 1,
   humidityHysteresisMax: 20,
   minIntervalMin: 1,
@@ -113,6 +119,11 @@ export const AC_RULE_DEFAULTS = {
   setpoint_offset: 2,
   fan_boost_threshold: 2,
   allowed_modes: ALL_MODES,
+  /** 外気温センサーは任意。紐づけるまで外気温は見ない。 */
+  outdoor_sensor_device_id: null,
+  dry_outdoor_temp_min: 20,
+  dry_outdoor_temp_max: 30,
+  dry_humidity_margin: 5,
 } as const;
 
 /**
@@ -149,6 +160,45 @@ export function isFanLowUnreachable(
 ): boolean {
   if (fanSpeed !== null) return false;
   return fanBoostThreshold <= tempHysteresis * 2;
+}
+
+/**
+ * 外気温がドライを優先する範囲にあるかを返す。
+ *
+ * 制御ツール側の dryPreferred と同じ判定（下限は以上、上限は未満）。画面で
+ * 「いま効いているのか」を示すために使う。外気温を読めないときは false。
+ */
+export function isDryPreferredByOutdoor(
+  outdoorTemp: number | null,
+  min: number,
+  max: number,
+): boolean {
+  if (outdoorTemp === null) return false;
+  return outdoorTemp >= min && outdoorTemp < max;
+}
+
+/**
+ * 外気温の範囲が空になっていないかを返す。
+ *
+ * 下限が上限以上だと、どんな外気温でも条件を満たさずドライ優先が永久に
+ * 効かない。保存前に気付けるようにする。
+ */
+export function isOutdoorRangeEmpty(min: number, max: number): boolean {
+  return min >= max;
+}
+
+/**
+ * 外気温の設定が効かない組み合わせかを返す。
+ *
+ * ドライを許可していないルールでは、制御ツールが外気温の判定そのものを
+ * 落とす（暑いときにドライを選んでゲートに塞がれ「暑いのに停止」になるのを
+ * 防ぐため）。センサーを紐づけていても設定は無視されるので、画面で示す。
+ */
+export function isOutdoorSettingIgnored(
+  outdoorSensorDeviceId: number | null,
+  allowedModes: number,
+): boolean {
+  return outdoorSensorDeviceId !== null && (allowedModes & MODE_BITS.dry) === 0;
 }
 
 /**

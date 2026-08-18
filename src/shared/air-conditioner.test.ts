@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   AC_RULE_DEFAULTS, ALL_MODES, MODE_BITS, isBaseHumidityTooHigh, isFanLowUnreachable,
+  isDryPreferredByOutdoor, isOutdoorRangeEmpty, isOutdoorSettingIgnored,
 } from './air-conditioner.js';
 
 describe('isFanLowUnreachable', () => {
@@ -79,5 +80,41 @@ describe('新規ルールの既定値', () => {
         AC_RULE_DEFAULTS.allowed_modes,
       ),
     ).toBe(false);
+  });
+});
+
+describe('isDryPreferredByOutdoor', () => {
+  it('下限は以上、上限は未満で判定する', () => {
+    // 「20℃台のあいだ」という言い方に合わせて上限は含めない。
+    expect(isDryPreferredByOutdoor(20, 20, 30)).toBe(true);
+    expect(isDryPreferredByOutdoor(26, 20, 30)).toBe(true);
+    expect(isDryPreferredByOutdoor(29.9, 20, 30)).toBe(true);
+    expect(isDryPreferredByOutdoor(30, 20, 30)).toBe(false);
+    expect(isDryPreferredByOutdoor(19.9, 20, 30)).toBe(false);
+  });
+
+  it('外気温を読めなければ優先しない', () => {
+    expect(isDryPreferredByOutdoor(null, 20, 30)).toBe(false);
+  });
+});
+
+describe('isOutdoorRangeEmpty', () => {
+  it('下限が上限以上なら一度も条件を満たさない', () => {
+    expect(isOutdoorRangeEmpty(30, 20)).toBe(true);
+    expect(isOutdoorRangeEmpty(25, 25)).toBe(true);
+    expect(isOutdoorRangeEmpty(20, 30)).toBe(false);
+  });
+});
+
+describe('isOutdoorSettingIgnored', () => {
+  it('ドライを許可していなければ外気温の設定は効かない', () => {
+    // 制御ツールは、暑いときにドライを選んでゲートに塞がれるのを避けるため、
+    // ドライ禁止のルールでは外気温の判定そのものを落とす。
+    expect(isOutdoorSettingIgnored(3, MODE_BITS.cool | MODE_BITS.heat)).toBe(true);
+    expect(isOutdoorSettingIgnored(3, MODE_BITS.cool | MODE_BITS.dry)).toBe(false);
+  });
+
+  it('センサーを紐づけていなければ警告しない', () => {
+    expect(isOutdoorSettingIgnored(null, MODE_BITS.cool)).toBe(false);
   });
 });

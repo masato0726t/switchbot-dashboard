@@ -66,6 +66,10 @@ function validRuleBody(overrides: Record<string, unknown> = {}) {
     setpoint_offset: 2,
     fan_boost_threshold: 2,
     allowed_modes: 7,
+    outdoor_sensor_device_id: null,
+    dry_outdoor_temp_min: 20,
+    dry_outdoor_temp_max: 30,
+    dry_humidity_margin: 5,
     schedules: [],
     ...overrides,
   };

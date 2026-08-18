@@ -18,6 +18,11 @@ export function toAcRuleDto(view: AcRuleView): AcRuleDto {
     ac_device_name: rule.acDeviceName,
     sensor_device_id: rule.sensorDeviceId,
     sensor_device_name: rule.sensorDeviceName,
+    outdoor_sensor_device_id: rule.outdoorSensorDeviceId,
+    outdoor_sensor_device_name: rule.outdoorSensorDeviceName,
+    dry_outdoor_temp_min: rule.dryOutdoorTempMin,
+    dry_outdoor_temp_max: rule.dryOutdoorTempMax,
+    dry_humidity_margin: rule.dryHumidityMargin,
     enabled: rule.enabled,
     // 期限切れのスヌーズを「停止中」と表示しないよう、切れていれば null にする。
     snooze_until: view.snoozing && rule.snoozeUntil ? rule.snoozeUntil.toISOString() : null,
@@ -60,6 +65,14 @@ export function toAcRuleDto(view: AcRuleView): AcRuleDto {
           humidity: rule.reading.humidity,
         }
       : null,
+    outdoor_reading: rule.outdoorReading
+      ? {
+          recorded_at: rule.outdoorReading.recordedAt.toISOString(),
+          temperature: rule.outdoorReading.temperature,
+          humidity: rule.outdoorReading.humidity,
+        }
+      : null,
+    dry_preferred_now: view.dryPreferredNow,
     humidity_low_warning: view.humidityLowWarning,
   };
 }
@@ -74,6 +87,7 @@ export function toAcCommandLogDto(log: AcCommandLog): AcCommandLogDto {
     fan_speed: log.fanSpeed,
     sensor_temp: log.sensorTemp,
     sensor_humidity: log.sensorHumidity,
+    outdoor_temp: log.outdoorTemp,
     reason: log.reason,
     result: log.result,
     error_message: log.errorMessage,

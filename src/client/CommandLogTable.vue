@@ -16,6 +16,7 @@ defineProps<{ logs: AcCommandLogDto[] }>();
           <th>日時</th>
           <th>送った内容</th>
           <th>室温 / 湿度</th>
+          <th>外気温</th>
           <th>理由</th>
           <th>結果</th>
         </tr>
@@ -25,6 +26,7 @@ defineProps<{ logs: AcCommandLogDto[] }>();
           <td>{{ formatDateTime(log.executed_at) }}</td>
           <td>{{ commandLabel(log) }}</td>
           <td>{{ readingLabel(log.sensor_temp, log.sensor_humidity) }}</td>
+          <td>{{ log.outdoor_temp === null ? '-' : `${log.outdoor_temp.toFixed(1)}℃` }}</td>
           <td>{{ log.reason }}</td>
           <td>
             <template v-if="log.result === 'success'">成功</template>

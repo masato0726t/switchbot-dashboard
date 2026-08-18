@@ -223,6 +223,11 @@ describe('AcRuleRepository', () => {
       // 全許可の 7 は「写し忘れでゼロ値＝全許可扱い」になった場合と挙動で
       // 区別がつかない。冷房＋暖房の 5 でゼロ値とも既定値とも区別する。
       allowed_modes: 5,
+      // 外気温まわりも DB の既定値（NULL / 20.0 / 30.0 / 5）と全部変える。
+      outdoor_sensor_device_id: 1,
+      dry_outdoor_temp_min: 18.5,
+      dry_outdoor_temp_max: 28.5,
+      dry_humidity_margin: 3,
       schedules: [],
       ...overrides,
     };
@@ -241,6 +246,30 @@ describe('AcRuleRepository', () => {
       fanBoostThreshold: 1.5,
       allowedModes: 5,
     });
+  });
+
+  test('外気温の 4 列が作成 → 取得で往復する', async () => {
+    const repo = createAcRuleRepository(mysql.db);
+    const id = await repo.createRule(ruleInput());
+
+    const rule = (await repo.listRules()).find((r) => r.id === id);
+    expect(rule).toMatchObject({
+      outdoorSensorDeviceId: 1,
+      dryOutdoorTempMin: 18.5,
+      dryOutdoorTempMax: 28.5,
+      dryHumidityMargin: 3,
+    });
+  });
+
+  test('外気温センサーの NULL（外気温を見ない）が往復する', async () => {
+    const repo = createAcRuleRepository(mysql.db);
+    const id = await repo.createRule(ruleInput({ outdoor_sensor_device_id: null }));
+
+    const rule = (await repo.listRules()).find((r) => r.id === id);
+    // 紐づけていないルールが左外部結合で消えず、名前も測定値も null で返ること。
+    expect(rule?.outdoorSensorDeviceId).toBeNull();
+    expect(rule?.outdoorSensorDeviceName).toBeNull();
+    expect(rule?.outdoorReading).toBeNull();
   });
 
   test('fan_speed の NULL（偏差から自動判別）が往復する', async () => {
@@ -263,6 +292,9 @@ describe('AcRuleRepository', () => {
       fan_boost_threshold: 2.5,
       allowed_modes: 6,   // ドライ＋暖房。作成時の 5 とも全許可の 7 とも違う値
       fan_speed: null,
+      dry_outdoor_temp_min: 21.5,
+      dry_outdoor_temp_max: 26.5,
+      dry_humidity_margin: 7,
     }));
     expect(updated).toBe(true);
 
@@ -274,6 +306,9 @@ describe('AcRuleRepository', () => {
       setpointOffset: 3.0,
       fanBoostThreshold: 2.5,
       allowedModes: 6,
+      dryOutdoorTempMin: 21.5,
+      dryOutdoorTempMax: 26.5,
+      dryHumidityMargin: 7,
     });
   });
 });
