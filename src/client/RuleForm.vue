@@ -4,6 +4,7 @@ import { computed } from 'vue';
 import {
   AC_LIMITS, MODE_BITS,
   isAirConditionerType, isBaseHumidityTooHigh, isFanLowUnreachable,
+  isOutdoorRangeEmpty, isOutdoorSettingIgnored,
 } from '../shared/air-conditioner.js';
 import type { AcDeviceOptionDto, AcRuleInput } from '../shared/ac-contract.js';
 import ScheduleEditor from './ScheduleEditor.vue';
@@ -18,13 +19,20 @@ function onNumber(key: 'ac_device_id' | 'sensor_device_id' | 'default_target_tem
   | 'temp_hysteresis' | 'humidity_hysteresis' | 'min_interval_min'
   | 'resend_interval_min' | 'sensor_max_age_min'
   | 'base_humidity' | 'comfort_adjust_max' | 'setpoint_offset'
-  | 'fan_boost_threshold', event: Event) {
+  | 'fan_boost_threshold'
+  | 'dry_outdoor_temp_min' | 'dry_outdoor_temp_max' | 'dry_humidity_margin', event: Event) {
   patch({ [key]: Number((event.target as HTMLInputElement | HTMLSelectElement).value) });
 }
 
 function onNullableNumber(key: 'default_humidity_max' | 'default_humidity_min', event: Event) {
   const raw = (event.target as HTMLInputElement).value;
   patch({ [key]: raw === '' ? null : Number(raw) });
+}
+
+/** 外気温センサーは空文字を null（外気温を見ない）に読み替える。 */
+function onOutdoorSensor(event: Event) {
+  const raw = (event.target as HTMLSelectElement).value;
+  patch({ outdoor_sensor_device_id: raw === '' ? null : Number(raw) });
 }
 
 /** 風量は空文字を null（偏差から自動判別）に読み替える。 */
@@ -52,6 +60,14 @@ const noModeSelected = computed(() => input.value.allowed_modes === 0);
 
 const fanLowUnreachable = computed(() =>
   isFanLowUnreachable(input.value.fan_speed, input.value.fan_boost_threshold, input.value.temp_hysteresis),
+);
+
+const outdoorRangeEmpty = computed(() =>
+  isOutdoorRangeEmpty(input.value.dry_outdoor_temp_min, input.value.dry_outdoor_temp_max),
+);
+
+const outdoorSettingIgnored = computed(() =>
+  isOutdoorSettingIgnored(input.value.outdoor_sensor_device_id, input.value.allowed_modes),
 );
 
 const baseHumidityTooHigh = computed(() =>
@@ -283,6 +299,70 @@ const selectedIsAirConditioner = computed(() => {
         <span class="hint">目標からこれだけ離れていたら強にします。中はこの半分です。</span>
         <span v-if="fanLowUnreachable" class="hint warning-text">
           この組み合わせでは風量「弱」が使われません。温度の許容幅の 2 倍より大きくしてください。
+        </span>
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>外気温でドライを優先</legend>
+      <p class="hint">
+        外がそこまで暑くない日は、冷房で温度を下げるより除湿のほうが冷えすぎにくくなります。
+        外気温がここで決めた範囲にあるあいだだけ、冷房よりドライを選びます。
+      </p>
+
+      <label>
+        外気温センサー
+        <select :value="input.outdoor_sensor_device_id ?? ''" @change="onOutdoorSensor($event)">
+          <option value="">使わない（外気温を見ない）</option>
+          <option v-for="device in sensors" :key="device.id" :value="device.id">
+            {{ deviceLabel(device) }}
+          </option>
+        </select>
+        <span class="hint">屋外に置いた温湿度計を選んでください。使うのは温度だけです。</span>
+        <span v-if="outdoorSettingIgnored" class="hint warning-text">
+          ドライを許可していないため、この設定は無視されます。「操作量」でドライにチェックを入れてください。
+        </span>
+      </label>
+
+      <label>
+        ドライを優先する外気温
+        <input
+          type="number"
+          :min="AC_LIMITS.outdoorTempMin"
+          :max="AC_LIMITS.outdoorTempMax"
+          :step="AC_LIMITS.decimalStep"
+          :value="input.dry_outdoor_temp_min"
+          @input="onNumber('dry_outdoor_temp_min', $event)"
+        >℃ 以上
+        <input
+          type="number"
+          :min="AC_LIMITS.outdoorTempMin"
+          :max="AC_LIMITS.outdoorTempMax"
+          :step="AC_LIMITS.decimalStep"
+          :value="input.dry_outdoor_temp_max"
+          @input="onNumber('dry_outdoor_temp_max', $event)"
+        >℃ 未満
+        <span class="hint">
+          既定は 20〜30℃ です。上限は「未満」なので、30 のままなら 30.0℃ ちょうどは範囲に入りません。
+        </span>
+        <span v-if="outdoorRangeEmpty" class="hint warning-text">
+          上限は下限より大きい値にしてください。このままでは一度も条件を満たしません。
+        </span>
+      </label>
+
+      <label>
+        湿度上限を下げる幅
+        <input
+          type="number"
+          :min="AC_LIMITS.dryHumidityMarginMin"
+          :max="AC_LIMITS.dryHumidityMarginMax"
+          step="1"
+          :value="input.dry_humidity_margin"
+          @input="onNumber('dry_humidity_margin', $event)"
+        >%
+        <span class="hint">
+          優先中は湿度上限をこれだけ下げて判定するので、上限に届く前からドライに入ります。
+          開始と停止の両方を同じだけ下げるため、運転と停止を往復することはありません。0 で従来どおりです。
         </span>
       </label>
     </fieldset>

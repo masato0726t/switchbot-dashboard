@@ -1,5 +1,6 @@
 // エアコン制御ルールの一覧取得。表示に必要な導出値をここで付ける。
 
+import { isDryPreferredByOutdoor } from '../../shared/air-conditioner.js';
 import type { AcRule } from '../domain/ac-rule.js';
 import { isHumidityLow, isSnoozing } from '../domain/ac-rule.js';
 import type { AcRuleRepository } from './ports.js';
@@ -11,6 +12,13 @@ export interface AcRuleView {
   humidityLowWarning: boolean;
   /** 現在時刻の時点で一時停止中か */
   snoozing: boolean;
+  /**
+   * いま外気温がドライ優先の範囲に入っているか。
+   *
+   * 設定しただけでは効いているか分からないので画面で示す。制御ツールは値の
+   * 鮮度も見るが、ここは表示なので範囲だけで判定する。
+   */
+  dryPreferredNow: boolean;
 }
 
 export interface GetAcRulesDeps {
@@ -30,6 +38,11 @@ export function makeGetAcRules(deps: GetAcRulesDeps) {
       rule,
       humidityLowWarning: isHumidityLow(rule.reading, rule.defaultHumidityMin),
       snoozing: isSnoozing(rule.snoozeUntil, at),
+      dryPreferredNow: isDryPreferredByOutdoor(
+        rule.outdoorReading?.temperature ?? null,
+        rule.dryOutdoorTempMin,
+        rule.dryOutdoorTempMax,
+      ),
     }));
   };
 }

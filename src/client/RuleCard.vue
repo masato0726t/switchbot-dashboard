@@ -46,6 +46,10 @@ function toInput(rule: AcRuleDto): AcRuleInput {
     setpoint_offset: rule.setpoint_offset,
     fan_boost_threshold: rule.fan_boost_threshold,
     allowed_modes: rule.allowed_modes,
+    outdoor_sensor_device_id: rule.outdoor_sensor_device_id,
+    dry_outdoor_temp_min: rule.dry_outdoor_temp_min,
+    dry_outdoor_temp_max: rule.dry_outdoor_temp_max,
+    dry_humidity_margin: rule.dry_humidity_margin,
     schedules: rule.schedules.map((s) => ({
       start_minute: s.start_minute,
       end_minute: s.end_minute,
@@ -92,6 +96,29 @@ const SNOOZE_CHOICES = [1, 3, 8] as const;
           <span class="muted">（{{ formatDateTime(rule.reading.recorded_at) }}）</span>
         </template>
         <span v-else class="error">測定値がありません</span>
+      </dd>
+
+      <dt>外気温センサー</dt>
+      <dd>
+        <template v-if="rule.outdoor_sensor_device_id === null">
+          <span class="muted">未設定（外気温を見ません）</span>
+        </template>
+        <template v-else>
+          {{ rule.outdoor_sensor_device_name ?? '(不明なデバイス)' }}
+          <template v-if="rule.outdoor_reading">
+            — {{ readingLabel(rule.outdoor_reading.temperature, rule.outdoor_reading.humidity) }}
+            <span class="muted">（{{ formatDateTime(rule.outdoor_reading.recorded_at) }}）</span>
+            <template v-if="rule.dry_preferred_now">
+              ／ <strong>ドライ優先中</strong>
+            </template>
+            <template v-else>
+              ／ <span class="muted">
+                範囲外（{{ rule.dry_outdoor_temp_min }}〜{{ rule.dry_outdoor_temp_max }}℃）なので通常の判定
+              </span>
+            </template>
+          </template>
+          <span v-else class="error">測定値がありません</span>
+        </template>
       </dd>
 
       <dt>エアコン</dt>

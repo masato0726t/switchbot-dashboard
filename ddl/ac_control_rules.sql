@@ -27,9 +27,15 @@ CREATE TABLE IF NOT EXISTS ac_control_rules (
     setpoint_offset      DECIMAL(2,1) NOT NULL DEFAULT 2.0 COMMENT 'エアコンへ送る設定温度を目標からずらす幅(℃)。0で目標と同じ',
     fan_boost_threshold  DECIMAL(2,1) NOT NULL DEFAULT 2.0 COMMENT '風量を強にする偏差(℃)。中はこの半分',
     allowed_modes        TINYINT      NOT NULL DEFAULT 7 COMMENT '許可する運転モードのビット和(1=冷房 2=ドライ 4=暖房)',
+    outdoor_sensor_device_id INT      NULL COMMENT 'devices.id（外気温の温湿度計）。NULLなら外気温を見ない',
+    dry_outdoor_temp_min DECIMAL(3,1) NOT NULL DEFAULT 20.0 COMMENT 'ドライを優先する外気温の下限(℃)。この値以上',
+    dry_outdoor_temp_max DECIMAL(3,1) NOT NULL DEFAULT 30.0 COMMENT 'ドライを優先する外気温の上限(℃)。この値未満',
+    dry_humidity_margin  TINYINT      NOT NULL DEFAULT 5 COMMENT 'ドライ優先中に湿度上限を下げる幅(%)。0で従来どおり',
     created_at           TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at           TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY uq_ac_device (ac_device_id),
     FOREIGN KEY (ac_device_id)     REFERENCES devices(id),
-    FOREIGN KEY (sensor_device_id) REFERENCES devices(id)
+    FOREIGN KEY (sensor_device_id) REFERENCES devices(id),
+    CONSTRAINT fk_ac_control_rules_outdoor_sensor
+        FOREIGN KEY (outdoor_sensor_device_id) REFERENCES devices(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='エアコン自動制御ルール';

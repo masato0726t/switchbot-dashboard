@@ -39,8 +39,13 @@ export function createAcRuleRepository(db: Db): AcRuleRepository {
       // 直せるよう左外部結合にする。
       .leftJoin('devices as ac', 'ac.id', 'r.ac_device_id')
       .leftJoin('devices as sensor', 'sensor.id', 'r.sensor_device_id')
+      // 外気温センサーは任意なので、紐づけていないルールでも行が消えないよう
+      // ここも左外部結合にする。
+      .leftJoin('devices as outdoor', 'outdoor.id', 'r.outdoor_sensor_device_id')
       .select([
         'r.id', 'r.name', 'r.ac_device_id', 'r.sensor_device_id',
+        'r.outdoor_sensor_device_id',
+        'r.dry_outdoor_temp_min', 'r.dry_outdoor_temp_max', 'r.dry_humidity_margin',
         'r.enabled', 'r.snooze_until',
         'r.default_target_temp', 'r.default_humidity_max', 'r.default_humidity_min',
         'r.temp_hysteresis', 'r.humidity_hysteresis',
@@ -49,6 +54,7 @@ export function createAcRuleRepository(db: Db): AcRuleRepository {
         'r.fan_boost_threshold', 'r.allowed_modes',
         'ac.device_name as ac_device_name',
         'sensor.device_name as sensor_device_name',
+        'outdoor.device_name as outdoor_sensor_device_name',
       ])
       .orderBy('r.id')
       .execute();
@@ -191,6 +197,10 @@ export function createAcRuleRepository(db: Db): AcRuleRepository {
       setpoint_offset: input.setpoint_offset,
       fan_boost_threshold: input.fan_boost_threshold,
       allowed_modes: input.allowed_modes,
+      outdoor_sensor_device_id: input.outdoor_sensor_device_id,
+      dry_outdoor_temp_min: input.dry_outdoor_temp_min,
+      dry_outdoor_temp_max: input.dry_outdoor_temp_max,
+      dry_humidity_margin: input.dry_humidity_margin,
     };
   }
 
@@ -200,7 +210,14 @@ export function createAcRuleRepository(db: Db): AcRuleRepository {
       if (rows.length === 0) return [];
 
       const ruleIds = rows.map((row) => row.id);
-      const sensorIds = [...new Set(rows.map((row) => row.sensor_device_id))];
+      // 室内と外気を 1 回の問い合わせでまとめて取る。外気温は紐づけている
+      // ルールだけなので、null を除いてから重複を落とす。
+      const sensorIds = [
+        ...new Set([
+          ...rows.map((row) => row.sensor_device_id),
+          ...rows.map((row) => row.outdoor_sensor_device_id).filter((id): id is number => id !== null),
+        ]),
+      ];
 
       const [schedules, lastCommands, readings] = await Promise.all([
         selectSchedules(ruleIds),
@@ -215,6 +232,11 @@ export function createAcRuleRepository(db: Db): AcRuleRepository {
         acDeviceName: row.ac_device_name,
         sensorDeviceId: row.sensor_device_id,
         sensorDeviceName: row.sensor_device_name,
+        outdoorSensorDeviceId: row.outdoor_sensor_device_id,
+        outdoorSensorDeviceName: row.outdoor_sensor_device_name,
+        dryOutdoorTempMin: toNumber(row.dry_outdoor_temp_min),
+        dryOutdoorTempMax: toNumber(row.dry_outdoor_temp_max),
+        dryHumidityMargin: row.dry_humidity_margin,
         enabled: row.enabled === 1,
         snoozeUntil: row.snooze_until,
         defaultTargetTemp: row.default_target_temp,
@@ -234,6 +256,10 @@ export function createAcRuleRepository(db: Db): AcRuleRepository {
         schedules: schedules.get(row.id) ?? [],
         lastCommand: lastCommands.get(row.id) ?? null,
         reading: readings.get(row.sensor_device_id) ?? null,
+        outdoorReading:
+          row.outdoor_sensor_device_id === null
+            ? null
+            : (readings.get(row.outdoor_sensor_device_id) ?? null),
       }));
     },
 
@@ -309,7 +335,8 @@ export function createAcRuleRepository(db: Db): AcRuleRepository {
         .selectFrom('ac_command_logs')
         .select([
           'id', 'executed_at', 'power', 'mode', 'target_temp', 'fan_speed',
-          'sensor_temp', 'sensor_humidity', 'reason', 'result', 'error_message',
+          'sensor_temp', 'sensor_humidity', 'outdoor_temp',
+          'reason', 'result', 'error_message',
         ])
         .where('rule_id', '=', id)
         .orderBy('executed_at', 'desc')
@@ -326,6 +353,7 @@ export function createAcRuleRepository(db: Db): AcRuleRepository {
         fanSpeed: row.fan_speed,
         sensorTemp: toNullableNumber(row.sensor_temp),
         sensorHumidity: toNullableNumber(row.sensor_humidity),
+        outdoorTemp: toNullableNumber(row.outdoor_temp),
         reason: row.reason,
         result: row.result,
         errorMessage: row.error_message,

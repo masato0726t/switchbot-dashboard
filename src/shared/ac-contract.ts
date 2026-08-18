@@ -3,7 +3,7 @@
 // 型は z.infer で導出するので二重定義にならない。
 
 import { z } from 'zod';
-import { AC_LIMITS, COMMAND_RESULTS, POWER_STATES } from './air-conditioner.js';
+import { AC_LIMITS, COMMAND_RESULTS, POWER_STATES, isOutdoorRangeEmpty } from './air-conditioner.js';
 import { findScheduleOverlaps, MINUTES_PER_DAY } from './ac-schedule.js';
 
 const {
@@ -19,6 +19,8 @@ const {
   setpointOffsetMin, setpointOffsetMax,
   fanBoostThresholdMin, fanBoostThresholdMax,
   allowedModesMin, allowedModesMax,
+  outdoorTempMin, outdoorTempMax,
+  dryHumidityMarginMin, dryHumidityMarginMax,
   snoozeHoursMax,
 } = AC_LIMITS;
 
@@ -116,6 +118,12 @@ export const AcRuleInputSchema = z
       .int()
       .min(allowedModesMin, '運転を少なくとも 1 つ許可してください。すべて止めるなら自動制御を無効にしてください')
       .max(allowedModesMax),
+    // 外気温を見てドライを優先するための設定。センサーが null なら外気温を
+    // 見ない（範囲と幅は保存されるが使われない）。
+    outdoor_sensor_device_id: z.number().int().nullable(),
+    dry_outdoor_temp_min: halfStep(outdoorTempMin, outdoorTempMax, 'ドライ優先の下限'),
+    dry_outdoor_temp_max: halfStep(outdoorTempMin, outdoorTempMax, 'ドライ優先の上限'),
+    dry_humidity_margin: z.number().int().min(dryHumidityMarginMin).max(dryHumidityMarginMax),
     schedules: z.array(AcScheduleSchema),
   })
   .superRefine((value, ctx) => {
@@ -124,6 +132,16 @@ export const AcRuleInputSchema = z
       ctx,
       [],
     );
+
+    // 下限が上限以上だと、どんな外気温でも条件を満たさずドライ優先が永久に
+    // 効かない。設定したのに何も起きない状態を保存させない。
+    if (isOutdoorRangeEmpty(value.dry_outdoor_temp_min, value.dry_outdoor_temp_max)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['dry_outdoor_temp_max'],
+        message: 'ドライ優先の上限は下限より大きい値にしてください',
+      });
+    }
 
     // 制御ツールは最初に一致した時間帯を採用するため、重複を許すと
     // どちらが効くかが登録順に依存してしまう。ここで弾く。
@@ -160,6 +178,11 @@ export const AcRuleSchema = z.object({
   ac_device_name: z.string().nullable(),
   sensor_device_id: z.number().int(),
   sensor_device_name: z.string().nullable(),
+  outdoor_sensor_device_id: z.number().int().nullable(),
+  outdoor_sensor_device_name: z.string().nullable(),
+  dry_outdoor_temp_min: z.number(),
+  dry_outdoor_temp_max: z.number(),
+  dry_humidity_margin: z.number().int(),
   enabled: z.boolean(),
   snooze_until: z.string().nullable(),
   default_target_temp: z.number().int(),
@@ -188,6 +211,10 @@ export const AcRuleSchema = z.object({
   ),
   last_command: AcLastCommandSchema.nullable(),
   reading: AcReadingSchema.nullable(),
+  /** 外気温センサーの最新値。紐づけていなければ null。 */
+  outdoor_reading: AcReadingSchema.nullable(),
+  /** いま外気温がドライ優先の範囲に入っているか。表示専用。 */
+  dry_preferred_now: z.boolean(),
   /** 現在湿度が下限を下回っているか。エアコンでは加湿できないので表示専用。 */
   humidity_low_warning: z.boolean(),
 });
@@ -214,6 +241,7 @@ export const AcCommandLogSchema = z.object({
   fan_speed: z.number().int(),
   sensor_temp: z.number().nullable(),
   sensor_humidity: z.number().nullable(),
+  outdoor_temp: z.number().nullable(),
   reason: z.string(),
   result: z.enum(COMMAND_RESULTS),
   error_message: z.string().nullable(),

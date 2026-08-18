@@ -21,6 +21,10 @@ function validRule(overrides: Record<string, unknown> = {}) {
     setpoint_offset: 2,
     fan_boost_threshold: 2,
     allowed_modes: 7,
+    outdoor_sensor_device_id: null,
+    dry_outdoor_temp_min: 20,
+    dry_outdoor_temp_max: 30,
+    dry_humidity_margin: 5,
     schedules: [],
     ...overrides,
   };
@@ -111,6 +115,38 @@ describe('AcRuleInputSchema', () => {
     expect(AcRuleInputSchema.safeParse(validRule({ fan_speed: 4 })).success).toBe(true);
     expect(AcRuleInputSchema.safeParse(validRule({ fan_speed: 0 })).success).toBe(false);
     expect(AcRuleInputSchema.safeParse(validRule({ fan_speed: 5 })).success).toBe(false);
+  });
+});
+
+describe('AcRuleInputSchema の外気温設定', () => {
+  it('上限は下限より大きいこと', () => {
+    // 下限が上限以上だと、どんな外気温でも条件を満たさずドライ優先が永久に
+    // 効かない。設定したのに何も起きない状態を保存させない。
+    expect(AcRuleInputSchema.safeParse(validRule({
+      dry_outdoor_temp_min: 20, dry_outdoor_temp_max: 30,
+    })).success).toBe(true);
+    expect(errorsOf(validRule({ dry_outdoor_temp_min: 30, dry_outdoor_temp_max: 20 })))
+      .toContain('ドライ優先の上限は下限より大きい値にしてください');
+    expect(errorsOf(validRule({ dry_outdoor_temp_min: 25, dry_outdoor_temp_max: 25 })))
+      .toContain('ドライ優先の上限は下限より大きい値にしてください');
+  });
+
+  it('外気温センサーは未設定（null）でもよい', () => {
+    // 紐づけていないルールは外気温を見ないだけで、範囲と幅は保存される。
+    expect(AcRuleInputSchema.safeParse(validRule({ outdoor_sensor_device_id: null })).success).toBe(true);
+    expect(AcRuleInputSchema.safeParse(validRule({ outdoor_sensor_device_id: 3 })).success).toBe(true);
+  });
+
+  it('湿度上限を下げる幅は 0〜20%', () => {
+    expect(AcRuleInputSchema.safeParse(validRule({ dry_humidity_margin: 0 })).success).toBe(true);
+    expect(AcRuleInputSchema.safeParse(validRule({ dry_humidity_margin: 20 })).success).toBe(true);
+    expect(AcRuleInputSchema.safeParse(validRule({ dry_humidity_margin: 21 })).success).toBe(false);
+    expect(AcRuleInputSchema.safeParse(validRule({ dry_humidity_margin: -1 })).success).toBe(false);
+  });
+
+  it('外気温は 0.5 刻みで指定する', () => {
+    expect(AcRuleInputSchema.safeParse(validRule({ dry_outdoor_temp_min: 20.5 })).success).toBe(true);
+    expect(AcRuleInputSchema.safeParse(validRule({ dry_outdoor_temp_min: 20.3 })).success).toBe(false);
   });
 });
 

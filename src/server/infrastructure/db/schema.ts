@@ -34,6 +34,12 @@ export interface AcControlRulesTable {
   name: string;
   ac_device_id: number;
   sensor_device_id: number;
+  /** NULL は「外気温を見ない」を意味する */
+  outdoor_sensor_device_id: number | null;
+  /** DECIMAL 列。mysql2 は文字列で返すことがあるため両方を受ける */
+  dry_outdoor_temp_min: number | string;
+  dry_outdoor_temp_max: number | string;
+  dry_humidity_margin: number;
   /** DDL に DEFAULT 1 があるので INSERT では省略できる */
   enabled: Generated<number>;
   /** 既定は NULL（一時停止していない）。INSERT では省略できる */
@@ -81,6 +87,7 @@ export interface AcCommandLogsTable {
   fan_speed: number;
   sensor_temp: number | string | null;
   sensor_humidity: number | string | null;
+  outdoor_temp: number | string | null;
   reason: string;
   result: 'success' | 'failure';
   error_message: string | null;
