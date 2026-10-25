@@ -37,8 +37,9 @@ function app(overrides: {
   const setDevicePlacement = overrides.setDevicePlacement ?? vi.fn().mockResolvedValue(undefined);
   const ac = acDeps(overrides.ac);
   const instance = createApp({
-    getSensorData, setDevicePlacement,
     // vi.fn() のモックは application 層の関数型と一致しないため、ここだけ型を緩める。
+    getSensorData: getSensorData as never,
+    setDevicePlacement: setDevicePlacement as never,
     ac: ac as never,
     logger: silentLogger,
     staticDir: fileURLToPath(new URL('.', import.meta.url)),

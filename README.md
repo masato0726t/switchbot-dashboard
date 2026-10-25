@@ -18,7 +18,7 @@ SwitchBot デバイスの温度・湿度・CO2 データをリアルタイムで
 
 ## 動作要件
 
-- Node.js 20 以上
+- Node.js 22.23.4 以上（22 系）または 24.22.1 以上（HTTP2Shell CVE-2026-111497 の修正版）
 - MySQL 8 以上
 - SwitchBot のデータが格納された `switchbot_db` データベース
 
