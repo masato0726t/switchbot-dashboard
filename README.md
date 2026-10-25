@@ -303,7 +303,7 @@ main → presentation → application → domain
 
 `main` への push と Pull Request では、GitHub Actions（`.github/workflows/ci.yml`）が
 **lint**（ESLint・層の境界チェックを含む）・**typecheck**（`tsc --noEmit`）・
-**test**（Vitest 単体テスト、Node.js 20 / 22）・**integration**（Testcontainers での
+**test**（Vitest 単体テスト、Node.js 22.23.4 / 24.22.1）・**integration**（Testcontainers での
 MySQL 統合テスト）・**build**（TypeScript ビルド）を自動実行します。
 
 ## ディレクトリ構成
